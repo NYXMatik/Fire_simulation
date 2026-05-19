@@ -46,13 +46,17 @@ on pull requests targeting `main`, and manually from the Actions tab.
 
 Each workflow run uploads an artifact named `fire-simulation-test-report` with:
 
+- `fire-simulation-test-report.html` - custom summary with chart and per-test output
 - `pytest-report.html` - browsable HTML test report
+- `pytest-report.json` - structured pytest report used to build the custom HTML report
 - `pytest-junit.xml` - machine-readable JUnit report
 - `pytest-output.txt` - full console output with printed metrics
 
 To reference the report, open the latest run in the
 [Tests workflow](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml)
 and download the artifact from the run summary.
+
+See [TESTING.md](TESTING.md) for details about the test groups, reports, and CI setup.
 
 The simulation is stochastic during normal interactive use. Test runs pass an explicit seed,
 so the same scenario and seed remain reproducible while different seeds still exercise random

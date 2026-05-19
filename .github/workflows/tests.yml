@@ -30,13 +30,22 @@ jobs:
       - name: Run tests and generate reports
         shell: bash
         run: |
-          set -o pipefail
           mkdir -p reports
+          set +e
           python -m pytest \
+            --capture=tee-sys \
+            --json-report \
+            --json-report-file=reports/pytest-report.json \
             --html=reports/pytest-report.html \
             --self-contained-html \
             --junitxml=reports/pytest-junit.xml \
             | tee reports/pytest-output.txt
+          pytest_status=${PIPESTATUS[0]}
+          set -e
+          python scripts/build_test_report.py \
+            --json reports/pytest-report.json \
+            --output reports/fire-simulation-test-report.html
+          exit "$pytest_status"
 
       - name: Upload test report artifact
         if: always()
@@ -54,5 +63,7 @@ jobs:
           echo "Download the artifact named \`fire-simulation-test-report\` from this workflow run to get:" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`pytest-report.html\` - browsable HTML test report" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`fire-simulation-test-report.html\` - custom summary with chart and per-test output" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`pytest-report.json\` - structured pytest report used to build the custom HTML report" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`pytest-junit.xml\` - machine-readable JUnit report" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`pytest-output.txt\` - full console output with printed metrics" >> "$GITHUB_STEP_SUMMARY"
