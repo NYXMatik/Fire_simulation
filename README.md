@@ -82,3 +82,8 @@ Terrain ignition probabilities and spread speeds are scaled from Trucchia et al.
 (2020), "PROPAGATOR: An Operational Cellular-Automata Based Wildfire Simulator".
 The simulation is stochastic during interactive use, while tests use explicit
 seeds for reproducible results.
+
+## References
+
+- Trucchia, A. et al. (2020). [PROPAGATOR: An Operational Cellular-Automata Based Wildfire Simulator](https://doi.org/10.3390/fire3030026).
+- Alexandridis, A. et al. (2008). [A cellular automata model for forest fire spread prediction: The case of the wildfire that swept through Spetses Island in 1990](https://doi.org/10.1016/j.amc.2008.06.046).
