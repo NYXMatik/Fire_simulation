@@ -18,7 +18,7 @@ The output image is what the app and tests load.
 from PIL import Image
 import numpy as np
 
-from simulation import BUILDINGS, FOREST, GREEN, WATER
+from fire_simulation.simulation import BUILDINGS, FOREST, GREEN, WATER
 
 # Representative source colors sampled from the original map style. These are
 # not the final simulation colors; they are anchors for nearest-color matching.
@@ -67,7 +67,7 @@ def convert_image(image_path):
 
 def main():
     """Manual converter entry point for regenerating the converted map asset."""
-    converted_image = convert_image('maps/map2.jpg')
+    converted_image = convert_image('maps/map2.JPG')
     converted_image.save(f"maps/map2_converted.png")
 
 

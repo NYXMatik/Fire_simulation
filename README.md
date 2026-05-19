@@ -2,117 +2,83 @@
 
 [![Tests](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml/badge.svg)](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml)
 
-Interactive cellular-automaton fire spread simulation.
+Interactive cellular-automaton simulation of fire spread on a converted map.
+The model supports terrain-dependent spread, wind bias, water barriers, and
+controlled-burn firebreaks.
 
-## Interactive simulation
+## Repository Structure
+
+```text
+fire_simulation/   Application package and simulation engine
+maps/              Source and converted map images
+tests/             Automated tests and formal test documentation
+scripts/           Helper scripts used by CI reporting
+.github/workflows/ GitHub Actions workflow definitions
+```
+
+## Run the Application
+
+Install dependencies:
 
 ```bash
-python app.py
+python -m pip install -r requirements.txt
+```
+
+Start the interactive simulation:
+
+```bash
+python -m fire_simulation.app
 ```
 
 Controls:
 
 - left mouse button - add regular fire
-- right mouse button - add a water barrier or a controlled burn line
-- `C` - switch right mouse button between water and controlled burn
+- right mouse button - add a water barrier or controlled-burn line
+- `C` - switch the right mouse action
 - `W/A/S/D` - set wind direction
 - `X` - cancel wind
-- `SPACE` - start/pause simulation
+- `SPACE` - start or pause simulation
 - `UP/DOWN` - change simulation speed
 - `R` - reset the map
 
 ## Tests
 
-Run behavioral, stability, and parameter tests:
+Run the full test suite:
 
 ```bash
 python -m pytest
 ```
 
-Run only one test group:
+Run a selected test group:
 
 ```bash
 python -m pytest tests/test_behavioral.py
-python -m pytest tests/test_stability.py
 python -m pytest tests/test_parameters.py
+python -m pytest tests/test_stability.py
 ```
 
-The tests print detailed metrics while running.
+Detailed formal documentation for every test case is available in
+[tests/TESTING.txt](tests/TESTING.txt).
 
-## GitHub Actions test report
+## Continuous Integration
 
-Tests are also run automatically in GitHub Actions on every push to `main`,
-on pull requests targeting `main`, and manually from the Actions tab.
+GitHub Actions runs the test suite on every push to `main`, on pull requests,
+and manually from the Actions tab.
 
-Each workflow run uploads an artifact named `fire-simulation-test-report` with:
+Each run uploads the `fire-simulation-test-report` artifact containing:
 
-- `fire-simulation-test-report.html` - custom summary with chart and per-test output
-- `pytest-report.html` - browsable HTML test report
-- `pytest-report.json` - structured pytest report used to build the custom HTML report
-- `pytest-junit.xml` - machine-readable JUnit report
-- `pytest-output.txt` - full console output with printed metrics
+- `fire-simulation-test-report.html` - custom report with summary chart and per-test output
+- `pytest-report.html` - standard pytest-html report
+- `pytest-report.json` - structured pytest data
+- `pytest-junit.xml` - JUnit-compatible report
+- `pytest-output.txt` - full console output
 
-To reference the report, open the latest run in the
-[Tests workflow](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml)
-and download the artifact from the run summary.
+The workflow is available here:
+[Tests workflow](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml).
 
-See [TESTING.txt](TESTING.txt) for detailed formal documentation of every test case.
+## Model Notes
 
-The simulation is stochastic during normal interactive use. Test runs pass an explicit seed,
-so the same scenario and seed remain reproducible while different seeds still exercise random
-variation.
-
-## Fire-spread parameter source and calibration
-
-The model separates two terrain parameters:
-
-- `ignition_probability`: how likely a target cell is to catch fire
-- `spread_speed`: how quickly fire can propagate through that target terrain
-
-They cooperate inside one visual tick as:
-
-```text
-P_effective = 1 - (1 - ignition_probability) ** spread_speed
-```
-
-This is equivalent to giving faster fuels more effective ignition opportunities
-per tick while keeping flammability and speed visible as separate parameters.
-
-The terrain probability and speed values are based on:
-
-Trucchia et al. (2020). "`PROPAGATOR`: An Operational Cellular-Automata Based
-Wildfire Simulator", Fire 3(3), 26.
-
-The project uses PROPAGATOR Table 1:
-
-```text
-FOREST    -> Fire-prone conifers: raw probability 0.35, velocity 200 m/min
-GREEN     -> Grassland:           raw probability 0.475, velocity 120 m/min
-BUILDINGS -> WUI proxy:           raw probability 0.275, velocity 60 m/min
-```
-
-PROPAGATOR treats man-made buildings/infrastructure as non-vegetated and
-non-burnable. This project uses the `BUILDINGS` color for a simplified
-wildland-urban-interface class, so it is mapped to a low-flammable WUI proxy
-rather than pure urban concrete.
-
-Because this app has an abstract visual tick rather than real minutes and
-meters, raw probabilities are scaled by one global factor. GREEN/Grassland is
-the reference class and is scaled to `0.09`; speed is normalized by the GREEN
-velocity of `120 m/min`:
-
-```text
-forest:    ignition_probability = 0.0663, spread_speed = 1.6667
-green:     ignition_probability = 0.09,   spread_speed = 1.0
-buildings: ignition_probability = 0.0521, spread_speed = 0.5
-```
-
-Wind uses the Alexandridis / Karakonstantis exponential factor:
-
-```text
-P_w = exp(V * (c1 + c2 * (cos(theta) - 1)))
-```
-
-where `theta` is the angle between wind direction and spread direction. The UI
-stores only wind direction, so the app uses a single nominal wind speed of
-`10 m/s` when wind is enabled.
+Terrain ignition probabilities and spread speeds are scaled from Trucchia et al.
+(2020), "PROPAGATOR: An Operational Cellular-Automata Based Wildfire Simulator".
+The simulation is stochastic during interactive use, while tests use explicit
+seeds for reproducible results.

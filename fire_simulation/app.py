@@ -20,7 +20,7 @@ from `simulation.py` when exact reproducibility is needed.
 import pygame
 from PIL import Image
 
-from simulation import (
+from fire_simulation.simulation import (
     BUILDINGS,
     CONTROLLED_BURN,
     CONTROLLED_BURNED,

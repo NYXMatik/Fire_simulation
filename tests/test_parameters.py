@@ -26,8 +26,8 @@ from statistics import mean
 
 import pytest
 
-import simulation
-from simulation import (
+from fire_simulation import simulation
+from fire_simulation.simulation import (
     BUILDINGS,
     DEFAULT_IGNITION_PROBABILITIES,
     DEFAULT_SPREAD_SPEEDS,

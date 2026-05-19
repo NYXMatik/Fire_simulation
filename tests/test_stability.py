@@ -26,7 +26,7 @@ from statistics import mean, stdev
 
 import pytest
 
-from simulation import BUILDINGS, FOREST, GREEN, load_grid_from_image, run_single_simulation
+from fire_simulation.simulation import BUILDINGS, FOREST, GREEN, load_grid_from_image, run_single_simulation
 
 
 SEEDS = range(1, 13)

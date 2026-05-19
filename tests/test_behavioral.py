@@ -21,7 +21,7 @@ than natural grassland, while urban/developed cells remain much less fire-prone.
 
 from statistics import mean
 
-from simulation import (
+from fire_simulation.simulation import (
     BUILDINGS,
     CONTROLLED_BURN,
     CONTROLLED_BURNED,
