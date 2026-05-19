@@ -56,7 +56,7 @@ To reference the report, open the latest run in the
 [Tests workflow](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml)
 and download the artifact from the run summary.
 
-See [TESTING.md](TESTING.md) for details about the test groups, reports, and CI setup.
+See [TESTING.txt](TESTING.txt) for detailed formal documentation of every test case.
 
 The simulation is stochastic during normal interactive use. Test runs pass an explicit seed,
 so the same scenario and seed remain reproducible while different seeds still exercise random

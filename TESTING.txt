@@ -1,0 +1,983 @@
+FIRE SIMULATION TEST DOCUMENTATION
+==================================
+
+Document purpose
+----------------
+This document provides a formal and detailed description of the automated test
+suite used for the Fire Simulation project. The tests are designed to verify the
+correctness, reproducibility, and parameter sensitivity of a cellular automaton
+model for fire spread. The suite contains 29 concrete pytest test cases,
+including parameterized cases.
+
+The documentation describes every test case separately. For each case, it
+states the objective, input conditions, execution procedure, measured evidence,
+and acceptance criteria.
+
+Test environment and execution
+------------------------------
+Test framework: pytest
+Primary command: python -m pytest
+Continuous integration: GitHub Actions, workflow file .github/workflows/tests.yml
+Generated CI artifact: fire-simulation-test-report
+
+The GitHub Actions workflow generates the following files:
+
+1. fire-simulation-test-report.html
+   A custom human-readable report containing a result summary, outcome chart,
+   per-test durations, and captured diagnostic output for individual tests.
+
+2. pytest-report.html
+   A standard pytest-html report.
+
+3. pytest-report.json
+   A structured pytest JSON report used to build the custom HTML report.
+
+4. pytest-junit.xml
+   A JUnit-compatible XML report suitable for external tools.
+
+5. pytest-output.txt
+   The complete console output of the test run, including printed diagnostic
+   metrics.
+
+Randomness and reproducibility policy
+-------------------------------------
+The interactive application is intentionally stochastic. However, automated
+tests use explicit random seeds whenever random behavior is involved. This
+allows the tests to verify random variation while keeping scientific and
+debugging runs reproducible.
+
+The tests follow three principles:
+
+1. A single seeded run must be repeatable.
+2. Different seeds may produce different results.
+3. Aggregate results across seeds must stay within calibrated and documented
+   bounds.
+
+
+SECTION 1: BEHAVIORAL TESTS
+===========================
+
+The behavioral tests are located in tests/test_behavioral.py. They verify
+specific qualitative rules of the fire-spread model.
+
+
+Test 1: test_boundary_reflection
+--------------------------------
+Objective:
+This test verifies that coordinate reflection keeps neighbor lookups inside the
+valid grid area. Reflection is used when wind-shifted neighbor coordinates would
+otherwise move outside the simulation bounds.
+
+Input conditions:
+The test calls reflect_coordinate with a grid size of 10. Three representative
+coordinates are checked:
+
+1. -1, representing a coordinate below the minimum boundary.
+2. 10, representing a coordinate equal to the first invalid coordinate above the
+   maximum boundary.
+3. 9, representing the last valid coordinate.
+
+Execution procedure:
+The function reflect_coordinate is invoked directly for each input coordinate.
+No stochastic simulation is run in this test.
+
+Measured evidence:
+The returned reflected coordinates are compared with exact expected values.
+
+Acceptance criteria:
+The test passes only if:
+
+1. reflect_coordinate(-1, 10) returns 1.
+2. reflect_coordinate(10, 10) returns 8.
+3. reflect_coordinate(9, 10) returns 9.
+
+Rationale:
+The first two assertions verify that out-of-range coordinates are mirrored back
+into the grid. The third assertion verifies that valid coordinates are left
+unchanged. This protects the simulation from invalid coordinate access near
+map edges.
+
+
+Test 2: test_converted_map_literature_terrain_order_after_5s
+------------------------------------------------------------
+Objective:
+This test verifies that the real converted map follows the expected terrain
+ordering derived from literature-based coefficients. Forest terrain should
+spread fire faster than green terrain, while developed or building terrain
+should remain significantly less fire-prone.
+
+Input conditions:
+The test uses the converted map file maps/map2_converted.png. Three terrain
+classes are evaluated:
+
+1. FOREST, ignited at coordinate (30, 63).
+2. GREEN, ignited at coordinate (30, 30).
+3. BUILDINGS, ignited at coordinate (123, 184).
+
+For each terrain, a 60 by 60 crop is extracted around the ignition point. The
+simulation uses no wind and runs for 50 iterations, corresponding to five
+seconds at the application speed used by the tests. The seeds are 1, 2, and 3.
+
+Execution procedure:
+For each terrain class, the test loads the converted image map, verifies that
+the selected ignition point belongs to the expected terrain, crops the local map
+area, and runs three deterministic simulations. It records the final number of
+burning cells for each seed and computes the mean.
+
+Measured evidence:
+The test prints a diagnostic table containing the terrain name, ignition point,
+individual samples, and mean number of burning cells for forest, green, and
+building terrain.
+
+Acceptance criteria:
+The test passes only if:
+
+1. The mean burning-cell count for forest is greater than 1.15 times the mean
+   burning-cell count for green terrain.
+2. The mean burning-cell count for buildings is less than 0.10 times the mean
+   burning-cell count for green terrain.
+
+Rationale:
+The model uses coefficients derived from the PROPAGATOR wildfire simulator and
+then globally scaled to the visual tick system of this project. The test does
+not require exact cell counts. Instead, it checks that the qualitative order of
+terrain behavior is preserved on an actual converted map.
+
+
+Test 3: test_no_wind_spread_is_isotropic
+----------------------------------------
+Objective:
+This test verifies that fire spreads symmetrically when wind is disabled and
+ignition is guaranteed. It isolates the geometric behavior of the update rules.
+
+Input conditions:
+A synthetic 41 by 41 grid is generated entirely from GREEN terrain. The ignition
+point is placed at the center of the grid. The ignition probability for GREEN
+terrain is overridden to 1.0, so every eligible neighboring cell ignites
+deterministically. Wind direction is set to (0, 0).
+
+Execution procedure:
+The grid is updated for six iterations. After the updates, all actively burning
+cells are collected. The test computes the distance from the ignition point to
+the leftmost, rightmost, uppermost, and lowermost burning cells.
+
+Measured evidence:
+The test prints the total number of burning cells and the four directional
+radii: left, right, up, and down.
+
+Acceptance criteria:
+The test passes only if:
+
+1. The left radius equals the right radius.
+2. The upward radius equals the downward radius.
+3. The total horizontal diameter equals the total vertical diameter.
+
+Rationale:
+Because the ignition probability is 1.0, random missing cells cannot affect the
+result. Therefore, any directional imbalance would indicate an error in the
+neighborhood geometry or update logic.
+
+
+Test 4: test_water_touching_fire_stops_source_spread
+----------------------------------------------------
+Objective:
+This test verifies that a burning cell touching water cannot ignite new
+neighbors. It confirms the blocking behavior implemented for water contact.
+
+Input conditions:
+A synthetic 7 by 7 GREEN grid is created. The cell at (3, 3) is set to FIRE1.
+The directly adjacent cell at (3, 4) is set to WATER. The ignition probability
+for GREEN terrain is overridden to 1.0 to eliminate random non-ignition.
+
+Execution procedure:
+The grid is updated once with wind direction (0, 0). After the update, the test
+searches for any new FIRE1 cells other than the original source cell.
+
+Measured evidence:
+The test prints the fire source coordinate, the water coordinate, and the list
+of newly ignited fire cells.
+
+Acceptance criteria:
+The test passes only if the list of newly ignited fire cells is empty.
+
+Rationale:
+With guaranteed ignition, any new burning neighbor would prove that water
+contact did not block the fire source as intended. This makes the test a strict
+verification of the water blocking rule.
+
+
+Test 5: test_east_wind_creates_positive_bias
+--------------------------------------------
+Objective:
+This test verifies that eastward wind moves the center of active fire east of
+the ignition point.
+
+Input conditions:
+A synthetic 60 by 60 FOREST grid is created. The ignition point is the center
+of the grid. Wind direction is set to (1, 0), representing eastward wind. The
+simulation runs for 60 iterations using seed 11.
+
+Execution procedure:
+The test runs one deterministic simulation and reads the final simulation
+metrics, including fire_center_x, fire_center_y, wind_bias, and burning_cells.
+
+Measured evidence:
+The test prints the final fire center coordinates, the wind bias, and the final
+number of burning cells.
+
+Acceptance criteria:
+The test passes only if the final wind_bias value is greater than 5.
+
+Rationale:
+The threshold allows normal stochastic variation but requires a clear eastward
+displacement. The test verifies that wind has a meaningful directional effect
+on the active fire distribution.
+
+
+Test 6: test_controlled_burn_does_not_spread_by_itself
+------------------------------------------------------
+Objective:
+This test verifies that a controlled-burn cell is passive and does not create
+regular fire by itself.
+
+Input conditions:
+A synthetic 7 by 7 GREEN grid is created. The cell at (3, 3) is set to
+CONTROLLED_BURN. GREEN ignition probability is overridden to 1.0.
+
+Execution procedure:
+The grid is updated once with no wind. The test then searches the entire grid
+for cells whose color is FIRE1.
+
+Measured evidence:
+The test prints the initial controlled-burn coordinate and the list of created
+FIRE1 cells.
+
+Acceptance criteria:
+The test passes only if no FIRE1 cells exist after the update.
+
+Rationale:
+Controlled burns represent a firebreak process and must not behave like an
+ordinary ignition source. This test protects that semantic distinction.
+
+
+Test 7: test_controlled_burn_can_be_captured_before_burnout
+-----------------------------------------------------------
+Objective:
+This test verifies that an active controlled-burn cell can still be captured by
+regular fire before it finishes and becomes a completed burned barrier.
+
+Input conditions:
+A synthetic 7 by 7 GREEN grid is created. The cell at (2, 3) is set to FIRE1.
+The adjacent cell at (3, 3) is set to CONTROLLED_BURN.
+
+Execution procedure:
+The grid is updated once with no wind and default probabilities. The test reads
+the resulting color of the controlled-burn cell.
+
+Measured evidence:
+The test prints the source fire coordinate, the controlled-burn coordinate, and
+the resulting color at the controlled-burn coordinate.
+
+Acceptance criteria:
+The test passes only if the cell at (3, 3) becomes FIRE1.
+
+Rationale:
+The test distinguishes active controlled burn from completed controlled burn.
+Active controlled-burn cells are still flammable, while completed controlled
+burn lines are expected to block fire.
+
+
+Test 8: test_burned_controlled_line_blocks_fire
+-----------------------------------------------
+Objective:
+This test verifies that a completed controlled-burn line acts as an effective
+firebreak and prevents fire from crossing it.
+
+Input conditions:
+A synthetic 20 by 15 GREEN grid is created. Every cell with x coordinate 8 is
+set to CONTROLLED_BURNED, forming a vertical barrier. A FIRE1 source is placed
+at (7, 7), immediately west of the barrier. GREEN ignition probability is
+overridden to 1.0. Wind direction is set to (1, 0), pushing fire eastward toward
+the barrier.
+
+Execution procedure:
+The grid is updated for eight iterations. Afterward, the test scans all cells
+east of the barrier, where x is greater than or equal to 9, and collects any
+cells that are FIRE1 or FIRE2.
+
+Measured evidence:
+The test prints the barrier x coordinate and the list of leaked fire points
+beyond the barrier.
+
+Acceptance criteria:
+The test passes only if no FIRE1 or FIRE2 cells exist east of the completed
+controlled-burn line.
+
+Rationale:
+The test uses guaranteed ignition and wind directed toward the barrier. This is
+a strict stress case: if fire crosses the completed controlled-burn line, the
+firebreak rule is not working.
+
+
+SECTION 2: PARAMETER SENSITIVITY TESTS
+======================================
+
+The parameter sensitivity tests are located in tests/test_parameters.py. They
+change one model parameter at a time and verify that the simulation response
+moves in the expected direction. These tests do not prove that one exact
+parameter value is universally correct. They verify that the implemented model
+reacts consistently and monotonically to parameter changes.
+
+
+Test 9: test_higher_ignition_probability_increases_spread, forest case
+----------------------------------------------------------------------
+Objective:
+This test verifies that increasing forest ignition probability increases the
+final active fire size.
+
+Input conditions:
+A synthetic 45 by 45 FOREST grid is used. The ignition point is the center of
+the grid. Wind is disabled. The simulation runs for 35 iterations. Four forest
+ignition probabilities are tested: 0.08, 0.12, 0.18, and 0.26. For each
+probability, seeds 1, 2, 3, and 4 are used.
+
+Execution procedure:
+For each probability value, the test runs four deterministic simulations,
+records the final number of burning cells, and computes the mean.
+
+Measured evidence:
+The report contains one row for each probability value, including individual
+seed samples and the mean burning-cell count.
+
+Acceptance criteria:
+The test passes only if:
+
+1. The sequence of mean burning-cell counts is monotonically non-decreasing.
+2. The highest-probability mean is greater than twice the lowest-probability
+   mean.
+
+Rationale:
+This confirms that forest ignition probability is directionally meaningful and
+has a visible effect on spread.
+
+
+Test 10: test_higher_ignition_probability_increases_spread, green case
+----------------------------------------------------------------------
+Objective:
+This test verifies that increasing green-terrain ignition probability increases
+the final active fire size.
+
+Input conditions:
+A synthetic 45 by 45 GREEN grid is used. The ignition point is central, wind is
+disabled, and the simulation runs for 35 iterations. Four GREEN ignition
+probabilities are tested: 0.02, 0.04, 0.055, and 0.09. Seeds 1, 2, 3, and 4 are
+used for each value.
+
+Execution procedure:
+The test runs four deterministic simulations for each probability value and
+calculates the mean number of burning cells.
+
+Measured evidence:
+The report contains the probability values, sample burning-cell counts, and
+mean burning-cell count for each value.
+
+Acceptance criteria:
+The test passes only if:
+
+1. Mean burning-cell counts increase monotonically with probability.
+2. The highest-probability mean is greater than twice the lowest-probability
+   mean.
+
+Rationale:
+The test verifies that green-terrain flammability produces the intended
+monotonic response despite stochastic variation.
+
+
+Test 11: test_higher_ignition_probability_increases_spread, buildings case
+--------------------------------------------------------------------------
+Objective:
+This test verifies that increasing building-terrain ignition probability
+increases the final active fire size, even though building terrain is modeled
+as low-flammability fuel.
+
+Input conditions:
+A synthetic 45 by 45 BUILDINGS grid is used. The ignition point is central,
+wind is disabled, and the simulation runs for 70 iterations. The longer run is
+used because the baseline spread is intentionally low. Four probabilities are
+tested: 0.002, 0.008, 0.015, and 0.03. Seeds 1, 2, 3, and 4 are used for each
+value.
+
+Execution procedure:
+The test runs four deterministic simulations per probability, records final
+burning-cell counts, and computes the mean for each probability.
+
+Measured evidence:
+The report contains sample values and mean burning-cell counts for every tested
+probability.
+
+Acceptance criteria:
+The test passes only if:
+
+1. Mean burning-cell counts increase monotonically with probability.
+2. The highest-probability mean is greater than twice the lowest-probability
+   mean.
+
+Rationale:
+The test confirms that the building-terrain parameter is active and
+directionally correct, while still allowing buildings to remain much less
+flammable than vegetation.
+
+
+Test 12: test_higher_spread_speed_increases_spread, forest case
+---------------------------------------------------------------
+Objective:
+This test verifies that increasing the explicit forest spread-speed multiplier
+increases final active fire size.
+
+Input conditions:
+A synthetic 45 by 45 FOREST grid is used. The ignition point is central, wind
+is disabled, and the simulation runs for 35 iterations. Four spread speeds are
+tested: 0.75, 1.0, 1.55, and 2.1. Seeds 1, 2, 3, and 4 are used for each speed.
+
+Execution procedure:
+The test overrides only the FOREST spread-speed value, runs four simulations
+per speed, records final burning-cell counts, and calculates means.
+
+Measured evidence:
+The report contains individual samples and mean burning-cell counts for each
+spread-speed value.
+
+Acceptance criteria:
+The test passes only if:
+
+1. Mean burning-cell counts are monotonically non-decreasing.
+2. The highest-speed mean is greater than 1.5 times the lowest-speed mean.
+
+Rationale:
+The test verifies that the model's explicit spread-speed parameter has the
+expected directional effect independently of ignition probability.
+
+
+Test 13: test_higher_spread_speed_increases_spread, green case
+--------------------------------------------------------------
+Objective:
+This test verifies that increasing the GREEN spread-speed multiplier increases
+final active fire size.
+
+Input conditions:
+A synthetic 45 by 45 GREEN grid is used. The ignition point is central, wind is
+disabled, and the simulation runs for 35 iterations. Four spread speeds are
+tested: 0.5, 0.8, 1.0, and 1.35. Seeds 1, 2, 3, and 4 are used for each speed.
+
+Execution procedure:
+The test runs four deterministic simulations per speed, records the final
+burning-cell count, and computes the mean response for each speed.
+
+Measured evidence:
+The report lists each speed, four sample values, and the mean burning-cell
+count.
+
+Acceptance criteria:
+The test passes only if:
+
+1. Mean burning-cell counts increase monotonically with spread speed.
+2. The highest-speed mean is greater than 1.5 times the lowest-speed mean.
+
+Rationale:
+This verifies that GREEN terrain responds correctly to changes in propagation
+speed and that the spread-speed control is not ignored.
+
+
+Test 14: test_higher_spread_speed_increases_spread, buildings case
+------------------------------------------------------------------
+Objective:
+This test verifies that increasing the BUILDINGS spread-speed multiplier
+increases final active fire size.
+
+Input conditions:
+A synthetic 45 by 45 BUILDINGS grid is used. The ignition point is central,
+wind is disabled, and the simulation runs for 70 iterations. Four speeds are
+tested: 0.25, 0.5, 0.67, and 1.0. Seeds 1, 2, 3, and 4 are used for each speed.
+
+Execution procedure:
+The test overrides the BUILDINGS spread-speed value, runs four deterministic
+simulations for each value, and computes the mean final burning-cell count.
+
+Measured evidence:
+The report contains the tested speed values, seed samples, and mean responses.
+
+Acceptance criteria:
+The test passes only if:
+
+1. Mean burning-cell counts increase monotonically with spread speed.
+2. The highest-speed mean is greater than 1.5 times the lowest-speed mean.
+
+Rationale:
+This confirms that even low-flammability terrain responds coherently to the
+speed component of the model.
+
+
+Test 15: test_wind_direction_changes_fire_center, west case
+-----------------------------------------------------------
+Objective:
+This test verifies that westward wind shifts the mean fire center west along
+the x axis and does not create excessive cross-axis drift.
+
+Input conditions:
+A synthetic 45 by 45 FOREST grid is used. The ignition point is central. Wind
+direction is (-1, 0). The simulation runs for 35 iterations. Seeds 1, 2, 3, and
+4 are used.
+
+Execution procedure:
+For each seed, the test records the final fire center and computes dx and dy
+relative to the ignition point. It then computes mean_dx and mean_dy across
+seeds.
+
+Measured evidence:
+The report contains per-seed dx, dy, wind_bias, and burning_cells, followed by
+mean_dx and mean_dy.
+
+Acceptance criteria:
+The test passes only if:
+
+1. mean_dx is less than -6, meaning the directional shift is clearly westward.
+2. The absolute cross-axis shift, represented by mean_dy, is less than 20% of
+   the absolute directional x shift.
+
+Rationale:
+This confirms that wind affects the correct axis and direction, while allowing
+minor stochastic cross-axis variation.
+
+
+Test 16: test_wind_direction_changes_fire_center, east case
+-----------------------------------------------------------
+Objective:
+This test verifies that eastward wind shifts the mean fire center east along
+the x axis and does not create excessive cross-axis drift.
+
+Input conditions:
+A synthetic 45 by 45 FOREST grid is used. The ignition point is central. Wind
+direction is (1, 0). The simulation runs for 35 iterations. Seeds 1, 2, 3, and
+4 are used.
+
+Execution procedure:
+The test runs one seeded simulation per seed, computes dx and dy from the final
+fire center, and averages the shifts.
+
+Measured evidence:
+The report contains per-seed displacement data, wind bias, burning-cell counts,
+mean_dx, and mean_dy.
+
+Acceptance criteria:
+The test passes only if:
+
+1. mean_dx is greater than 6.
+2. The absolute cross-axis shift, represented by mean_dy, is less than 20% of
+   the absolute directional x shift.
+
+Rationale:
+The test confirms that eastward wind produces a clear eastward bias and that
+the effect is not dominated by random north-south drift.
+
+
+Test 17: test_wind_direction_changes_fire_center, north case
+------------------------------------------------------------
+Objective:
+This test verifies that northward wind shifts the mean fire center north along
+the y axis and does not create excessive cross-axis drift.
+
+Input conditions:
+A synthetic 45 by 45 FOREST grid is used. The ignition point is central. Wind
+direction is (0, -1). The simulation runs for 35 iterations. Seeds 1, 2, 3, and
+4 are used.
+
+Execution procedure:
+The test runs four seeded simulations, computes dx and dy for each run, and
+calculates mean_dx and mean_dy.
+
+Measured evidence:
+The report contains per-seed displacement data, wind bias, burning-cell counts,
+mean_dx, and mean_dy.
+
+Acceptance criteria:
+The test passes only if:
+
+1. mean_dy is less than -6.
+2. The absolute cross-axis shift, represented by mean_dx, is less than 20% of
+   the absolute directional y shift.
+
+Rationale:
+The test verifies that northward wind is implemented as negative y movement and
+that stochastic east-west drift remains secondary.
+
+
+Test 18: test_wind_direction_changes_fire_center, south case
+------------------------------------------------------------
+Objective:
+This test verifies that southward wind shifts the mean fire center south along
+the y axis and does not create excessive cross-axis drift.
+
+Input conditions:
+A synthetic 45 by 45 FOREST grid is used. The ignition point is central. Wind
+direction is (0, 1). The simulation runs for 35 iterations. Seeds 1, 2, 3, and
+4 are used.
+
+Execution procedure:
+The test runs four seeded simulations, computes dx and dy for each run, and
+calculates mean_dx and mean_dy.
+
+Measured evidence:
+The report contains per-seed displacement data, wind bias, burning-cell counts,
+mean_dx, and mean_dy.
+
+Acceptance criteria:
+The test passes only if:
+
+1. mean_dy is greater than 6.
+2. The absolute cross-axis shift, represented by mean_dx, is less than 20% of
+   the absolute directional y shift.
+
+Rationale:
+The test verifies that southward wind is implemented as positive y movement and
+that the direction-specific signal dominates random lateral movement.
+
+
+Test 19: test_longer_fire_burnout_start_keeps_more_cells_burning
+-----------------------------------------------------------------
+Objective:
+This test verifies that increasing the fire burnout start time keeps more cells
+actively burning and leaves fewer cells already burned out at the end of the
+simulation.
+
+Input conditions:
+A synthetic 35 by 35 GREEN grid is used. The ignition point is central. Wind is
+disabled. The simulation runs for 100 iterations. Four FIRE_BURNOUT_START
+values are tested: 30, 60, 90, and 120. Seeds 1, 2, 3, and 4 are used for each
+burnout value.
+
+Execution procedure:
+The test uses pytest monkeypatching to temporarily set the simulation constant
+FIRE_BURNOUT_START. For each burnout value, it runs four deterministic
+simulations and records both burning_cells and burned_cells. It computes mean
+burning cells and mean burned cells for every burnout value.
+
+Measured evidence:
+The report contains burnout_start, burning_samples, burned_samples,
+mean_burning_cells, and mean_burned_cells for each tested value.
+
+Acceptance criteria:
+The test passes only if:
+
+1. Mean burning-cell counts increase monotonically as FIRE_BURNOUT_START
+   increases.
+2. Mean burned-cell counts decrease monotonically as FIRE_BURNOUT_START
+   increases.
+
+Rationale:
+The test verifies that fire lifetime has the correct temporal effect. A later
+burnout start should delay the transition from active fire to burned-out cells.
+
+
+SECTION 3: STABILITY AND REPRODUCIBILITY TESTS
+==============================================
+
+The stability tests are located in tests/test_stability.py. They verify that
+the stochastic model remains statistically stable across different seeds and
+that repeated use of the same seed gives identical results.
+
+The repeated-seed stability tests use seeds 1 through 12. The determinism tests
+run the same scenario twice with seed 7.
+
+
+Test 20: test_scenario_results_are_stable_across_seeds, uniform_forest_no_wind
+------------------------------------------------------------------------------
+Objective:
+This test verifies that repeated stochastic simulations on uniform forest
+terrain without wind remain within calibrated variation bounds.
+
+Input conditions:
+A synthetic 45 by 45 FOREST grid is used. The ignition point is (22, 22). Wind
+direction is (0, 0). The simulation runs for 40 iterations. Seeds 1 through 12
+are used.
+
+Execution procedure:
+The test runs the scenario once per seed and records burning_cells, burned_cells,
+affected_cells, and wind_bias. It then summarizes burning_cells with mean,
+standard deviation, coefficient of variation, minimum, maximum, and range.
+
+Measured evidence:
+The report contains the seed list, wind direction, iteration count,
+burning-cell summary, and wind-bias summary.
+
+Acceptance criteria:
+The test passes only if:
+
+1. The coefficient of variation for burning_cells is at most 0.13.
+2. The burning-cell range is at most 420.
+
+Rationale:
+Forest spread is stochastic but should not be chaotic. These limits ensure that
+aggregate spread remains stable across seeds.
+
+
+Test 21: test_scenario_results_are_stable_across_seeds, uniform_green_no_wind
+-----------------------------------------------------------------------------
+Objective:
+This test verifies that repeated stochastic simulations on uniform green
+terrain without wind remain within calibrated variation bounds.
+
+Input conditions:
+A synthetic 45 by 45 GREEN grid is used. The ignition point is (22, 22). Wind
+direction is (0, 0). The simulation runs for 40 iterations. Seeds 1 through 12
+are used.
+
+Execution procedure:
+The test runs twelve deterministic simulations, one per seed, and summarizes
+the final burning-cell counts and wind-bias values.
+
+Measured evidence:
+The report contains burning-cell values for all seeds, mean, standard
+deviation, coefficient of variation, minimum, maximum, range, and wind-bias
+summary.
+
+Acceptance criteria:
+The test passes only if:
+
+1. The coefficient of variation for burning_cells is at most 0.14.
+2. The burning-cell range is at most 340.
+
+Rationale:
+The test confirms that green-terrain spread remains repeatable at the aggregate
+level across random seeds.
+
+
+Test 22: test_scenario_results_are_stable_across_seeds, uniform_forest_east_wind
+--------------------------------------------------------------------------------
+Objective:
+This test verifies that stochastic forest simulations with eastward wind remain
+stable and preserve a meaningful positive wind bias.
+
+Input conditions:
+A synthetic 45 by 45 FOREST grid is used. The ignition point is (22, 22). Wind
+direction is (1, 0). The simulation runs for 40 iterations. Seeds 1 through 12
+are used.
+
+Execution procedure:
+The test runs the scenario once per seed. It summarizes the final burning-cell
+counts and wind-bias values across all seeds.
+
+Measured evidence:
+The report contains the list of burning-cell values, mean, standard deviation,
+coefficient of variation, range, and the corresponding wind-bias summary.
+
+Acceptance criteria:
+The test passes only if:
+
+1. The coefficient of variation for burning_cells is at most 0.20.
+2. The burning-cell range is at most 260.
+3. The mean wind_bias is at least 6.5.
+
+Rationale:
+Wind changes the spread geometry and can increase variability. The bounds are
+therefore more permissive than in no-wind cases, but the wind-bias requirement
+ensures that the wind effect remains consistently visible.
+
+
+Test 23: test_scenario_results_are_stable_across_seeds, converted_map_forest_crop
+---------------------------------------------------------------------------------
+Objective:
+This test verifies that repeated stochastic simulations on a real converted-map
+forest crop remain within calibrated variation bounds.
+
+Input conditions:
+The test loads maps/map2_converted.png and extracts a 45 by 45 crop centered on
+the forest coordinate (30, 63). The crop ignition point is the center of the
+crop. Wind direction is (0, 0). The simulation runs for 40 iterations. Seeds 1
+through 12 are used.
+
+Execution procedure:
+The test runs twelve deterministic simulations on the same real-map crop and
+summarizes the final burning-cell counts and wind-bias values.
+
+Measured evidence:
+The report contains seed list, wind direction, iteration count, burning-cell
+summary, and wind-bias summary.
+
+Acceptance criteria:
+The test passes only if:
+
+1. The coefficient of variation for burning_cells is at most 0.13.
+2. The burning-cell range is at most 420.
+
+Rationale:
+This test extends stability verification from synthetic uniform maps to an
+actual converted map area. It confirms that real map structure does not make
+the model unstable across seeds.
+
+
+Test 24: test_scenario_results_are_stable_across_seeds, uniform_buildings_no_wind
+---------------------------------------------------------------------------------
+Objective:
+This test verifies that repeated stochastic simulations on low-flammability
+building terrain remain within calibrated absolute variation bounds.
+
+Input conditions:
+A synthetic 45 by 45 BUILDINGS grid is used. The ignition point is (22, 22).
+Wind direction is (0, 0). The simulation runs for 70 iterations. Seeds 1
+through 12 are used.
+
+Execution procedure:
+The test runs the scenario once per seed and summarizes burning_cells and
+wind_bias.
+
+Measured evidence:
+The report contains burning-cell values for all seeds, mean, standard
+deviation, coefficient of variation, minimum, maximum, range, and wind-bias
+summary.
+
+Acceptance criteria:
+The test passes only if:
+
+1. The standard deviation of burning_cells is at most 45.0.
+2. The burning-cell range is at most 140.
+
+Rationale:
+Because building terrain has low spread rates, relative variation can be noisy.
+The test therefore uses absolute standard-deviation and range limits, which are
+more appropriate for small burning-cell counts.
+
+
+Test 25: test_same_seed_gives_identical_result, uniform_forest_no_wind
+----------------------------------------------------------------------
+Objective:
+This test verifies deterministic reproducibility for the uniform forest
+no-wind scenario when the same seed is used twice.
+
+Input conditions:
+The scenario uses a 45 by 45 FOREST grid, ignition point (22, 22), wind
+direction (0, 0), and 40 iterations. The seed is 7 for both runs.
+
+Execution procedure:
+The test runs the scenario twice with identical inputs and compares the final
+metrics dictionaries.
+
+Measured evidence:
+The report prints both final dictionaries, each containing burning_cells,
+burned_cells, affected_cells, and wind_bias.
+
+Acceptance criteria:
+The test passes only if the two dictionaries are exactly equal.
+
+Rationale:
+This ensures that seeded forest simulations can be repeated exactly for
+debugging and reporting.
+
+
+Test 26: test_same_seed_gives_identical_result, uniform_green_no_wind
+---------------------------------------------------------------------
+Objective:
+This test verifies deterministic reproducibility for the uniform green
+no-wind scenario.
+
+Input conditions:
+The scenario uses a 45 by 45 GREEN grid, ignition point (22, 22), wind
+direction (0, 0), and 40 iterations. The seed is 7 for both runs.
+
+Execution procedure:
+The scenario is executed twice with identical inputs. The final metrics
+dictionaries are compared.
+
+Measured evidence:
+The report prints both final dictionaries.
+
+Acceptance criteria:
+The test passes only if the two dictionaries are exactly equal.
+
+Rationale:
+This confirms that green-terrain simulation results are reproducible under a
+fixed seed.
+
+
+Test 27: test_same_seed_gives_identical_result, uniform_forest_east_wind
+------------------------------------------------------------------------
+Objective:
+This test verifies deterministic reproducibility for the uniform forest
+scenario with eastward wind.
+
+Input conditions:
+The scenario uses a 45 by 45 FOREST grid, ignition point (22, 22), wind
+direction (1, 0), and 40 iterations. The seed is 7 for both runs.
+
+Execution procedure:
+The test executes the scenario twice and compares the resulting final metrics.
+
+Measured evidence:
+The report prints the two final metric dictionaries, including wind_bias.
+
+Acceptance criteria:
+The test passes only if the two final dictionaries are exactly equal.
+
+Rationale:
+The test verifies that seeded reproducibility also holds when wind affects the
+spread process.
+
+
+Test 28: test_same_seed_gives_identical_result, converted_map_forest_crop
+-------------------------------------------------------------------------
+Objective:
+This test verifies deterministic reproducibility for a real converted-map
+forest crop.
+
+Input conditions:
+The scenario uses a 45 by 45 crop from maps/map2_converted.png centered on the
+forest coordinate (30, 63). Wind direction is (0, 0), the simulation runs for
+40 iterations, and seed 7 is used for both runs.
+
+Execution procedure:
+The same converted-map scenario is executed twice. The final metric
+dictionaries are compared exactly.
+
+Measured evidence:
+The report prints both final dictionaries.
+
+Acceptance criteria:
+The test passes only if the dictionaries are exactly equal.
+
+Rationale:
+This verifies that reproducibility is preserved not only on synthetic maps but
+also on real converted map data.
+
+
+Test 29: test_same_seed_gives_identical_result, uniform_buildings_no_wind
+-------------------------------------------------------------------------
+Objective:
+This test verifies deterministic reproducibility for the low-flammability
+building-terrain scenario.
+
+Input conditions:
+The scenario uses a 45 by 45 BUILDINGS grid, ignition point (22, 22), wind
+direction (0, 0), and 70 iterations. The seed is 7 for both runs.
+
+Execution procedure:
+The scenario is executed twice with identical inputs. The final metric
+dictionaries are compared exactly.
+
+Measured evidence:
+The report prints both final dictionaries.
+
+Acceptance criteria:
+The test passes only if the two final dictionaries are exactly equal.
+
+Rationale:
+This confirms that low-spread building scenarios remain exactly reproducible
+when the random seed is fixed.
+
+
+Conclusion
+----------
+The complete automated test suite verifies low-level boundary behavior,
+terrain-dependent spread behavior, water and controlled-burn rules, wind
+directionality, parameter sensitivity, stochastic stability, and deterministic
+reproducibility. Together, these tests provide evidence that the simulation is
+not only executable, but also scientifically inspectable and suitable for
+repeatable reporting through GitHub Actions artifacts.
