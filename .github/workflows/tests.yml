@@ -1,0 +1,57 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    name: Pytest report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run tests and generate reports
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          python -m pytest \
+            --html=reports/pytest-report.html \
+            --self-contained-html \
+            --junitxml=reports/pytest-junit.xml \
+            | tee reports/pytest-output.txt
+
+      - name: Upload test report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fire-simulation-test-report
+          path: reports/
+
+      - name: Add report link to job summary
+        if: always()
+        run: |
+          echo "## Fire Simulation test report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Download the artifact named \`fire-simulation-test-report\` from this workflow run to get:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`pytest-report.html\` - browsable HTML test report" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`pytest-junit.xml\` - machine-readable JUnit report" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`pytest-output.txt\` - full console output with printed metrics" >> "$GITHUB_STEP_SUMMARY"
