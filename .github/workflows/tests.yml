@@ -44,6 +44,7 @@ jobs:
         with:
           name: fire-simulation-test-report
           path: reports/
+          retention-days: 90
 
       - name: Add report link to job summary
         if: always()
