@@ -62,8 +62,8 @@ Mateusz Janowski
 Forest fires are highly dynamic spatial phenomena: a small ignition point can
 quickly become a complex moving front whose behaviour depends on fuel, terrain,
 wind and local barriers. Modelling this process makes it possible to explore
-such scenarios before they occur in reality. Even a simplified simulation can
-help reason about where a fire may accelerate, where it may slow down, and how
+such scenarios before they occur in reality. A well-designed simulation can help
+reason about where a fire may accelerate, where it may slow down, and how
 changes in the environment or intervention strategy may alter the final burned
 area. In this sense, fire-spread modelling is valuable not only as a technical
 exercise, but as a controlled way of studying risk, prevention and response in
@@ -72,19 +72,19 @@ landscapes where real experimentation would be impossible.
 The motivation of this project is to create a fire-spread simulation that can
 be applied to arbitrary real-world areas extracted from Google Earth. Instead of
 being limited to a predefined synthetic map, the model is intended to transform
-a selected map image into a simplified computational environment in which fire
-propagation can be studied across different spatial contexts, including forest
-areas, open terrain, built-up zones and natural barriers.
+a selected map image into a computational environment in which fire propagation
+can be studied across different spatial contexts, including forest areas, open
+terrain, built-up zones and natural barriers.
 
 The central idea is to make such experimentation accessible without introducing
 unnecessary application complexity. The simulation should allow the user to
 choose an area, convert visible land-cover classes into model states, place an
 initial ignition point and observe how fire evolves under different wind,
 barrier and intervention conditions. At the same time, the user interface and
-the model logic are deliberately kept simple. This makes the application easier
-to inspect, easier to modify and more suitable for studying how local
-cellular-automaton rules generate larger fire-spread patterns in an arbitrary
-environment.
+the model logic are deliberately kept clear and accessible. This makes the
+application easy to operate while still allowing advanced propagation mechanisms
+to be examined: terrain-dependent ignition, wind-driven spread, water blocking
+and controlled burnout can all be studied within the same interface.
 
 ### 1.2 Scientific Questions
 
@@ -278,56 +278,63 @@ together in one downloadable artifact.
 
 ### 5.1 General Conclusions
 
-The project demonstrates that a real map image can be transformed into a simple
-but expressive fire-spread simulation environment. The resulting model does not
-attempt to reproduce all physical processes involved in wildfire dynamics.
-Instead, it deliberately focuses on a transparent cellular-automaton structure
-in which terrain type, ignition location, wind direction, water barriers and
-controlled burnout can be modified and observed directly. This makes the
-application useful as an exploratory tool: it allows complex spatial behaviour
-to emerge from a limited set of understandable local rules.
+The project demonstrates that a real map image can be transformed into a
+capable, user-friendly fire-spread simulation environment. The main strength of
+the application is that it keeps interaction simple without making the model
+hard to understand, while retaining modelling depth. A user can load a
+converted map, choose an ignition point, change wind, place water barriers or
+controlled-burn lines and immediately observe how these decisions affect the
+evolving fire front.
 
-The most important outcome is the balance between flexibility and simplicity.
-The simulation can be applied to arbitrary areas extracted from Google Earth,
-which gives it practical spatial relevance, while the interface remains simple
-enough for rapid experimentation. The model therefore supports a form of
-interactive reasoning: the user can change conditions, observe the resulting
-fire pattern and compare scenarios without needing a large operational wildfire
-forecasting system.
+This combination gives the project both practical and analytical value. The
+interface is easy to understand, but the behaviour behind it reflects several
+important mechanisms of fire propagation: terrain-dependent ignition,
+wind-driven spread, active blocking by water, intervention through controlled
+burnout and sensitivity to the initial fire location. The result is a model that
+is approachable for experimentation while still rich enough to study meaningful
+spatial fire dynamics.
 
 ### 5.2 Answers to the Scientific Questions
 
-The model answers the first scientific question by showing that a real map image
-can be converted into a computational grid suitable for cellular-automaton fire
-spread. Visible land-cover classes are translated into terrain states, and these
-states become the basis for local transition rules. In this way, the simulation
-connects an ordinary geographic image with a dynamic model that can be executed,
-modified and tested.
+The model and the accompanying analysis answer the map-conversion question by
+showing that a selected Google Earth area can become the spatial basis of a
+working simulation. The conversion step translates visible land-cover classes
+into terrain states, and the simulation then treats those states as active
+elements of the cellular automaton. This makes it possible to study fire spread
+on recognizable, real-world-like areas rather than only on abstract grids.
 
-The second question is addressed through terrain-dependent ignition
-probabilities and spread speeds. Forest, green terrain and buildings do not
-behave as identical cells; each terrain class influences the probability and
-rate of propagation. This allows the simulation to express an important spatial
-intuition: fire does not spread through a map uniformly, but reacts to the
-structure of the environment.
+The influence of terrain is made observable through different ignition
+probabilities and spread speeds assigned to forest, open green areas and
+buildings. When fire starts in or reaches these terrain classes, the model does
+not propagate uniformly. Forest regions support faster spread, green terrain
+produces a different response and building areas remain substantially less
+flammable. The tests based on different ignition points show this mechanism
+directly: changing the terrain context of the starting point changes the
+measured spread and the final spatial pattern.
 
-The third question is addressed by wind and barrier mechanisms. Wind modifies
-the direction of spread and shifts the active fire centre, while water barriers
-and completed controlled-burn lines can interrupt propagation. These mechanisms
-make it possible to study not only how fire expands, but also how it can be
-redirected, slowed or stopped under simplified intervention scenarios.
+The model also answers the question about wind and barriers through concrete
+interactive mechanisms. Wind can be added to the simulation and it changes the
+direction of propagation by biasing the active fire front toward the selected
+wind vector. Water can be added artificially during the simulation; once placed,
+it completely blocks the possibility of fire spreading through the water cells.
+Controlled burnout provides a second containment mechanism: an active
+controlled-burn line can be created by the user, and after it finishes burning
+it becomes a completed firebreak that prevents the fire from crossing. These
+features allow the user to compare free propagation, wind-driven propagation
+and interrupted propagation within the same environment.
 
-The fourth question is addressed by allowing the ignition point to be selected
-interactively. Changing the initial fire location changes the terrain context
-encountered by the fire front, and therefore changes the final burned area and
-the overall geometry of the spread pattern. The model consequently shows that
-initial conditions are not a minor technical detail, but a central component of
-spatial fire behaviour.
+The ignition-location question is answered by making the starting point an
+interactive part of the experiment. Placing the initial fire in a forest patch,
+near open ground, close to buildings or next to a barrier exposes the fire front
+to a different local neighbourhood from the first simulation step. As a result,
+the final burned area and the geometry of the fire front can change
+substantially. The model therefore makes ignition location visible as a real
+driver of the scenario and a central factor in spatial fire behaviour.
 
 ### 5.3 Future Directions
 
-Future development should focus on increasing realism while preserving the
-clarity that makes the current model useful. One natural extension would be to
+Future development should focus on extending the model while preserving the
+clarity and usability that make it effective. One natural extension would be to
 improve map conversion by using more advanced image classification methods, so
 that terrain classes can be detected more reliably from different Google Earth
 exports. Another direction would be to introduce additional environmental
@@ -339,9 +346,9 @@ perimeters or controlled reference scenarios became available, the current
 structural tests could be complemented with empirical validation. This would
 make it possible to compare simulated spread patterns with observed outcomes,
 calibrate parameters more precisely and assess predictive accuracy. The current
-implementation provides a stable foundation for that development: it is simple,
-inspectable and already equipped with automated tests and reproducible reporting
-through GitHub Actions.
+implementation provides a strong foundation for that development: it is
+user-friendly, inspectable and already equipped with automated tests and
+reproducible reporting through GitHub Actions.
 """
 
 
