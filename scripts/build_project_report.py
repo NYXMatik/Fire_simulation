@@ -42,13 +42,13 @@ def outcome_sentence(total: int, counts: Counter) -> str:
 def build_report(pytest_json: Path | None) -> str:
     report = read_json(pytest_json)
     total, counts = test_summary(report)
-    created = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    created = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    return f"""# Fire Simulation Project Report
+    return f"""# Simulation of Fire Spread in a Map-Based Environment
 
-Generated: {created}
+Mateusz Janowski
 
-Repository: [{REPOSITORY_URL}]({REPOSITORY_URL})
+{created}
 
 ## 1. Introduction
 
@@ -265,25 +265,54 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
     return blocks
 
 
+def text_width(text: str, size: int) -> float:
+    return len(text) * size * 0.46
+
+
 def build_pdf(markdown: str, output: Path) -> None:
     width = 595
     height = 842
-    margin = 54
-    bottom = 54
-    y = height - margin
+    margin = 82
+    bottom = 82
+    y = height - 122
     pages: list[list[str]] = [[]]
 
     def new_page() -> None:
         nonlocal y
         pages.append([])
-        y = height - margin
+        y = height - 92
 
-    def add_line(text: str, size: int = 10, font: str = "F1", leading: int = 14) -> None:
+    def add_text(x: float, y_pos: float, text: str, size: int, font: str) -> None:
+        pages[-1].append(f"BT /{font} {size} Tf {x:.2f} {y_pos:.2f} Td ({pdf_escape(text)}) Tj ET")
+
+    def add_line(text: str, size: int = 11, font: str = "F1", leading: int = 14) -> None:
         nonlocal y
         if y < bottom:
             new_page()
-        pages[-1].append(f"BT /{font} {size} Tf {margin} {y} Td ({pdf_escape(text)}) Tj ET")
+        add_text(margin, y, text, size, font)
         y -= leading
+
+    def add_centered(text: str, size: int, font: str, leading: int) -> None:
+        nonlocal y
+        x = (width - text_width(text, size)) / 2
+        add_text(max(margin, x), y, text, size, font)
+        y -= leading
+
+    def add_rule() -> None:
+        nonlocal y
+        if y < bottom + 20:
+            new_page()
+        x1 = margin + 110
+        x2 = width - margin - 110
+        pages[-1].append(f"{x1:.2f} {y:.2f} m {x2:.2f} {y:.2f} l S")
+        y -= 28
+
+    def add_code_background(line_count: int) -> None:
+        block_height = line_count * 12 + 12
+        x = margin - 4
+        rect_y = y - block_height + 16
+        rect_width = width - 2 * margin + 8
+        pages[-1].append(f"0.94 0.95 0.96 rg {x:.2f} {rect_y:.2f} {rect_width:.2f} {block_height:.2f} re f 0 g")
 
     def add_space(points: int) -> None:
         nonlocal y
@@ -291,40 +320,61 @@ def build_pdf(markdown: str, output: Path) -> None:
         if y < bottom:
             new_page()
 
+    title_done = False
+    pending_rule = False
     for kind, text in markdown_blocks(markdown):
         if kind == "h1":
-            add_line(text, size=18, leading=24)
-            add_space(8)
+            for title_line in textwrap.wrap(text, width=48):
+                add_centered(title_line, size=19, font="F4", leading=24)
+            add_space(12)
+            title_done = True
         elif kind == "h2":
-            add_space(8)
-            add_line(text, size=14, leading=19)
-            add_space(3)
+            if pending_rule:
+                add_rule()
+                pending_rule = False
+            add_space(10)
+            add_line(text, size=14, font="F4", leading=20)
+            add_space(16)
         elif kind == "h3":
+            add_space(6)
+            add_line(text, size=11, font="F4", leading=16)
             add_space(5)
-            add_line(text, size=12, leading=17)
-            add_space(2)
         elif kind == "bullet":
-            wrapped = textwrap.wrap(text, width=86)
+            wrapped = textwrap.wrap(text, width=82)
             for index, line in enumerate(wrapped):
                 prefix = "- " if index == 0 else "  "
-                add_line(prefix + line, size=10, leading=14)
+                add_line(prefix + line, size=10, leading=13)
             add_space(3)
         elif kind == "code":
+            wrapped_lines: list[str] = []
             for code_line in text.splitlines():
-                for wrapped in textwrap.wrap(code_line, width=82, replace_whitespace=False) or [""]:
-                    add_line(wrapped, size=9, font="F2", leading=12)
+                wrapped_lines.extend(textwrap.wrap(code_line, width=78, replace_whitespace=False) or [""])
+            if y - (len(wrapped_lines) * 12 + 16) < bottom:
+                new_page()
+            add_code_background(len(wrapped_lines))
+            for wrapped in wrapped_lines:
+                add_line(wrapped, size=9, font="F3", leading=12)
             add_space(5)
         else:
-            for line in textwrap.wrap(text, width=92):
-                add_line(line, size=10, leading=14)
-            add_space(5)
+            if title_done and text in {"Mateusz Janowski"}:
+                add_centered(text, size=13, font="F1", leading=24)
+            elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+                add_centered(text, size=12, font="F1", leading=52)
+            else:
+                for line in textwrap.wrap(text, width=86):
+                    add_line(line, size=11, leading=14)
+                add_space(7)
+                if text.startswith("Together, these checks"):
+                    pending_rule = True
 
     objects: list[bytes] = []
     catalog_id = 1
     pages_id = 2
-    font_helvetica_id = 3
-    font_courier_id = 4
-    first_page_id = 5
+    font_times_id = 3
+    font_times_bold_id = 4
+    font_courier_id = 5
+    font_helvetica_bold_id = 6
+    first_page_id = 7
     page_ids: list[int] = []
     content_ids: list[int] = []
 
@@ -337,13 +387,18 @@ def build_pdf(markdown: str, output: Path) -> None:
     objects.append(f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode("latin-1"))
     kids = " ".join(f"{page_id} 0 R" for page_id in page_ids)
     objects.append(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode("latin-1"))
-    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>")
     objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
 
-    for page_id, content_id, lines in zip(page_ids, content_ids, pages):
+    for index, (page_id, content_id, lines) in enumerate(zip(page_ids, content_ids, pages), start=1):
+        page_number_x = width / 2 - 3
+        lines.append(f"BT /F1 10 Tf {page_number_x:.2f} 44 Td ({index}) Tj ET")
         page_obj = (
             f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {width} {height}] "
-            f"/Resources << /Font << /F1 {font_helvetica_id} 0 R /F2 {font_courier_id} 0 R >> >> "
+            f"/Resources << /Font << /F1 {font_times_id} 0 R /F2 {font_times_bold_id} 0 R "
+            f"/F3 {font_courier_id} 0 R /F4 {font_helvetica_bold_id} 0 R >> >> "
             f"/Contents {content_id} 0 R >>"
         )
         stream = "\n".join(lines).encode("latin-1", errors="replace")
