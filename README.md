@@ -76,6 +76,12 @@ Each run uploads the `fire-simulation-test-report` artifact containing:
 The workflow is available here:
 [Tests workflow](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml).
 
+The repository also includes a formal project-report workflow:
+[Project Report workflow](https://github.com/NYXMatik/Fire_simulation/actions/workflows/project-report.yml).
+It generates the `fire-simulation-project-report` artifact with
+`fire-simulation-project-report.pdf` and the current test evidence used by the
+evaluation section.
+
 ## Model Notes
 
 Terrain ignition probabilities and spread speeds are scaled from Trucchia et al.

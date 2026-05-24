@@ -1,0 +1,78 @@
+name: Project Report
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  project-report:
+    name: Formal project report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run tests and generate test evidence
+        shell: bash
+        run: |
+          mkdir -p reports
+          set +e
+          python -m pytest \
+            --capture=tee-sys \
+            --json-report \
+            --json-report-file=reports/pytest-report.json \
+            --html=reports/pytest-report.html \
+            --self-contained-html \
+            --junitxml=reports/pytest-junit.xml \
+            | tee reports/pytest-output.txt
+          pytest_status=${PIPESTATUS[0]}
+          set -e
+          python scripts/build_test_report.py \
+            --json reports/pytest-report.json \
+            --output reports/fire-simulation-test-report.html
+          exit "$pytest_status"
+
+      - name: Build formal project report
+        if: always()
+        run: |
+          python scripts/build_project_report.py \
+            --pytest-json reports/pytest-report.json \
+            --pdf-output reports/fire-simulation-project-report.pdf
+
+      - name: Upload project report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fire-simulation-project-report
+          path: |
+            reports/fire-simulation-project-report.pdf
+            reports/fire-simulation-test-report.html
+            reports/pytest-report.html
+            reports/pytest-report.json
+            reports/pytest-junit.xml
+            reports/pytest-output.txt
+          retention-days: 90
+
+      - name: Add report link to job summary
+        if: always()
+        run: |
+          echo "## Fire Simulation project report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Download the artifact named \`fire-simulation-project-report\` from this workflow run." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "It contains the formal project report and the current automated test evidence used by the evaluation section." >> "$GITHUB_STEP_SUMMARY"
