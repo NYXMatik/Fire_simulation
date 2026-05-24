@@ -221,18 +221,16 @@ generates this report. The workflow is stored in
 [`Project Report`]({REPORT_WORKFLOW_URL}). During each run, the workflow
 executes pytest, generates structured reports, builds a custom HTML summary,
 creates the formal PDF report, and uploads the `fire-simulation-project-report`
-artifact. The artifact contains:
+artifact. The artifact contains the following files:
 
-- `fire-simulation-project-report.pdf`, the formal report generated from the
-  current repository state;
-- `fire-simulation-test-report.html`, a custom report with an outcome chart,
-  per-test durations, and captured diagnostic output;
-- `pytest-report.html`, the standard browsable pytest-html report;
-- `pytest-report.json`, structured pytest data used by the custom report
-  generator;
-- `pytest-junit.xml`, a JUnit-compatible report suitable for external tools;
-- `pytest-output.txt`, the complete console output, including printed model
-  metrics from individual tests.
+| File | Purpose |
+| --- | --- |
+| `fire-simulation-project-report.pdf` | Formal project report generated from the current repository state. |
+| `fire-simulation-test-report.html` | Custom report with an outcome chart, per-test durations, and captured diagnostic output. |
+| `pytest-report.html` | Standard browsable pytest-html report. |
+| `pytest-report.json` | Structured pytest data used by the custom report generator. |
+| `pytest-junit.xml` | JUnit-compatible report suitable for external tools. |
+| `pytest-output.txt` | Complete console output, including printed model metrics from individual tests. |
 
 This means that the generated PDF and the complete test evidence are preserved
 together in one downloadable artifact. {outcome_sentence(total, counts)}
@@ -260,6 +258,7 @@ def pdf_escape(text: str) -> str:
 def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
     blocks: list[tuple[str, str]] = []
     paragraph: list[str] = []
+    table_lines: list[str] = []
     in_code = False
     code_lines: list[str] = []
 
@@ -268,9 +267,15 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
             blocks.append(("p", " ".join(paragraph)))
             paragraph.clear()
 
+    def flush_table() -> None:
+        if table_lines:
+            blocks.append(("table", "\n".join(table_lines)))
+            table_lines.clear()
+
     for raw_line in markdown.splitlines():
         line = raw_line.rstrip()
         if line.startswith("```"):
+            flush_table()
             flush_paragraph()
             if in_code:
                 blocks.append(("code", "\n".join(code_lines)))
@@ -285,28 +290,50 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
             continue
 
         if not line:
+            flush_table()
             flush_paragraph()
             continue
 
+        if line.startswith("|") and line.endswith("|"):
+            flush_paragraph()
+            table_lines.append(line)
+            continue
+
         if line.startswith("# "):
+            flush_table()
             flush_paragraph()
             blocks.append(("h1", plain_inline(line[2:].strip())))
         elif line.startswith("## "):
+            flush_table()
             flush_paragraph()
             blocks.append(("h2", plain_inline(line[3:].strip())))
         elif line.startswith("### "):
+            flush_table()
             flush_paragraph()
             blocks.append(("h3", plain_inline(line[4:].strip())))
         elif line.startswith("- "):
+            flush_table()
             flush_paragraph()
             blocks.append(("bullet", plain_inline(line[2:].strip())))
         else:
+            flush_table()
             paragraph.append(plain_inline(line.strip()))
 
+    flush_table()
     flush_paragraph()
     if code_lines:
         blocks.append(("code", "\n".join(code_lines)))
     return blocks
+
+
+def parse_markdown_table(text: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in text.splitlines():
+        cells = [plain_inline(cell.strip()) for cell in line.strip("|").split("|")]
+        if all(set(cell) <= {"-", ":", " "} for cell in cells):
+            continue
+        rows.append(cells)
+    return rows
 
 
 def text_width(text: str, size: int) -> float:
@@ -412,6 +439,23 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
         leading=11,
         textColor=colors.HexColor("#002b36"),
     )
+    table_header_style = ParagraphStyle(
+        "TableHeader",
+        parent=body_style,
+        fontName="Helvetica-Bold",
+        fontSize=9.5,
+        leading=12,
+        alignment=TA_LEFT,
+    )
+    table_cell_style = ParagraphStyle(
+        "TableCell",
+        parent=body_style,
+        fontName="Times-Roman",
+        fontSize=9.5,
+        leading=12,
+        alignment=TA_LEFT,
+        spaceAfter=0,
+    )
 
     story = []
     blocks = markdown_blocks(markdown)
@@ -455,6 +499,36 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             )
             story.append(table)
             story.append(Spacer(1, 8))
+        elif kind == "table":
+            parsed_rows = parse_markdown_table(text)
+            table_data = []
+            for row_index, row in enumerate(parsed_rows):
+                style = table_header_style if row_index == 0 else table_cell_style
+                table_data.append(
+                    [
+                        Paragraph(
+                            cell.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"),
+                            style,
+                        )
+                        for cell in row
+                    ]
+                )
+            table = Table(table_data, colWidths=[content_width * 0.42, content_width * 0.58], repeatRows=1)
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eeeeee")),
+                        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#8a8a8a")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                        ("TOPPADDING", (0, 0), (-1, -1), 5),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ]
+                )
+            )
+            story.append(table)
+            story.append(Spacer(1, 10))
         else:
             story.append(Paragraph(escaped, body_style))
 
