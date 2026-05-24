@@ -59,13 +59,15 @@ Mateusz Janowski
 
 ### 1.1 Motivation
 
-Modelling forest fires is important because it supports prevention, preparedness
-and risk reduction. Even simplified simulations can help identify how a fire may
-develop under different terrain and wind conditions, where natural or artificial
-barriers may be effective, and which areas may require particular attention in
-planning emergency response. In this sense, fire-spread modelling is not only a
-technical exercise, but also a tool for understanding spatial risk before a real
-event occurs.
+Forest fires are highly dynamic spatial phenomena: a small ignition point can
+quickly become a complex moving front whose behaviour depends on fuel, terrain,
+wind and local barriers. Modelling this process makes it possible to explore
+such scenarios before they occur in reality. Even a simplified simulation can
+help reason about where a fire may accelerate, where it may slow down, and how
+changes in the environment or intervention strategy may alter the final burned
+area. In this sense, fire-spread modelling is valuable not only as a technical
+exercise, but as a controlled way of studying risk, prevention and response in
+landscapes where real experimentation would be impossible.
 
 The motivation of this project is to create a fire-spread simulation that can
 be applied to arbitrary real-world areas extracted from Google Earth. Instead of
