@@ -59,22 +59,22 @@ Mateusz Janowski
 
 ### 1.1 Motivation
 
-Wildfire propagation is a spatial process shaped by the interaction between
-fuel availability, terrain structure, wind direction and local barriers. Even a
-simple simulation can therefore become useful when it allows these mechanisms
-to be studied in a controlled environment. The motivation of this project is to
-construct an interactive fire-spread model that starts from a real map image,
-translates visible land-cover classes into simulation states and then applies a
-cellular-automaton rule set to approximate the evolution of fire over time.
+The motivation of this project is to create a fire-spread simulation that can
+be applied to arbitrary real-world areas extracted from Google Earth. Instead of
+being limited to a predefined synthetic map, the model is intended to transform
+a selected map image into a simplified computational environment in which fire
+propagation can be studied across different spatial contexts, including forest
+areas, open terrain, built-up zones and natural barriers.
 
-The project is not intended to replace operational wildfire forecasting systems.
-Its purpose is narrower and more exploratory: to provide a transparent modelling
-environment in which the influence of terrain type, ignition location, wind
-direction, water barriers and controlled burnout can be inspected directly. This
-is particularly useful for understanding how local transition rules produce
-larger spatial patterns. Because the model is implemented as an interactive
-simulation, the user can modify the initial and boundary conditions and observe
-how the resulting fire front changes.
+The central idea is to make such experimentation accessible without introducing
+unnecessary application complexity. The simulation should allow the user to
+choose an area, convert visible land-cover classes into model states, place an
+initial ignition point and observe how fire evolves under different wind,
+barrier and intervention conditions. At the same time, the user interface and
+the model logic are deliberately kept simple. This makes the application easier
+to inspect, easier to modify and more suitable for studying how local
+cellular-automaton rules generate larger fire-spread patterns in an arbitrary
+environment.
 
 ### 1.2 Scientific Questions
 
