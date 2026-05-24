@@ -13,6 +13,9 @@ REPOSITORY_URL = "https://github.com/NYXMatik/Fire_simulation"
 REPORT_WORKFLOW_URL = f"{REPOSITORY_URL}/actions/workflows/project-report.yml"
 REPORT_WORKFLOW_FILE_URL = f"{REPOSITORY_URL}/blob/main/.github/workflows/project-report.yml"
 TEST_DOCUMENTATION_URL = f"{REPOSITORY_URL}/blob/main/tests/TESTING.txt"
+BEHAVIORAL_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_behavioral.py"
+PARAMETER_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_parameters.py"
+STABILITY_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_stability.py"
 
 
 def read_json(path: Path | None) -> dict:
@@ -129,9 +132,10 @@ independently of a particular empirical data set. They are especially important
 in this project because the simulation contains explicit modelling assumptions:
 wind should create directional bias, water and completed controlled-burn cells
 should stop propagation, and terrain type should influence ignition likelihood
-and spread speed. These tests are located in `tests/test_behavioral.py`.
+and spread speed. These tests are located in
+[`test_behavioral.py`]({BEHAVIORAL_TESTS_URL}).
 
-The first representative behavioral test is `test_no_wind_spread_is_isotropic`.
+The first representative behavioral test is *test_no_wind_spread_is_isotropic*.
 Its purpose is to verify the geometric neutrality of the model when wind is
 absent. A synthetic 41 by 41 grid is filled with one terrain class, the ignition
 point is placed exactly at the centre, and the ignition probability is set to
@@ -152,15 +156,14 @@ horizontal diameter must match the total vertical diameter. A failure would
 indicate that the model introduces directional bias even when no wind is
 present, which would undermine later interpretation of wind-driven spread.
 
-The second representative behavioral test is
-`test_converted_map_literature_terrain_order_after_5s`. It evaluates whether
-different ignition points on the converted map preserve the intended terrain
-hierarchy. The test selects representative coordinates for forest, green
-terrain, and buildings, extracts comparable local crops around these ignition
-points, and runs seeded simulations for the same duration. The objective is not
-to reproduce an observed fire perimeter, because no such reference data are
-available. Instead, the test checks whether the implemented terrain parameters
-produce a defensible ordering of spread intensity.
+Another behavioral example, *test_converted_map_literature_terrain_order_after_5s*,
+evaluates whether different ignition points on the converted map preserve the
+intended terrain hierarchy. The test selects representative coordinates for
+forest, green terrain, and buildings, extracts comparable local crops around
+these ignition points, and runs seeded simulations for the same duration. The
+objective is not to reproduce an observed fire perimeter, because no such
+reference data are available. Instead, the test checks whether the implemented
+terrain parameters produce a defensible ordering of spread intensity.
 
 ```python
 assert forest["mean_burning_cells"] > green["mean_burning_cells"] * 1.15
@@ -181,17 +184,16 @@ Parameter sensitivity tests verify that model parameters are operationally
 meaningful. In a simulation without empirical calibration data, it is not enough
 to define parameters in the code; it must also be shown that changing them
 affects model dynamics in the expected direction. These tests are located in
-`tests/test_parameters.py`.
+[`test_parameters.py`]({PARAMETER_TESTS_URL}).
 
-The representative test is
-`test_higher_ignition_probability_increases_spread`. The test is parameterized
-for forest, green terrain, and buildings. For each terrain class, it constructs
-a synthetic uniform grid, changes only the ignition probability for that
-terrain, runs several seeded simulations for each probability value, and
-computes the mean number of active burning cells at the end of the run. This
-design isolates the ignition probability from other map effects, making it
-possible to evaluate the response of the implemented model to a controlled
-parameter change.
+The representative test, *test_higher_ignition_probability_increases_spread*,
+is parameterized for forest, green terrain, and buildings. For each terrain
+class, it constructs a synthetic uniform grid, changes only the ignition
+probability for that terrain, runs several seeded simulations for each
+probability value, and computes the mean number of active burning cells at the
+end of the run. This design isolates the ignition probability from other map
+effects, making it possible to evaluate the response of the implemented model
+to a controlled parameter change.
 
 ```python
 assert means == sorted(means)
@@ -215,15 +217,15 @@ fuel continuity, moisture variability, turbulence, and small ignition events
 can produce different trajectories. The implemented model reflects this by
 using probabilistic transition rules. Therefore, different random seeds are not
 expected to produce identical fire patterns. What should be required is
-aggregate similarity within explicit thresholds.
+aggregate similarity within explicit thresholds. These tests are located in
+[`test_stability.py`]({STABILITY_TESTS_URL}).
 
-The representative test is
-`test_scenario_results_are_stable_across_seeds`. It runs the same scenario for
-seeds 1 through 12 and summarizes the final burning-cell counts and wind-bias
-values. For a uniform forest scenario without wind, the test evaluates the
-coefficient of variation and range of active burning cells. These are aggregate
-measures: they do not require identical maps for different seeds, but they do
-detect excessive instability in the simulated spread.
+The representative test, *test_scenario_results_are_stable_across_seeds*, runs
+the same scenario for seeds 1 through 12 and summarizes the final burning-cell
+counts and wind-bias values. For a uniform forest scenario without wind, the
+test evaluates the coefficient of variation and range of active burning cells.
+These are aggregate measures: they do not require identical maps for different
+seeds, but they do detect excessive instability in the simulated spread.
 
 ```python
 assert burning_summary["cv"] <= scenario.max_burning_cv
@@ -383,7 +385,8 @@ def reportlab_inline(text: str) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
-    return "".join(chunks).replace("`", "")
+    escaped = "".join(chunks).replace("`", "")
+    return re.sub(r"\*([^*\n]+)\*", r"<i>\1</i>", escaped)
 
 
 def pdf_escape(text: str) -> str:
@@ -592,11 +595,15 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
     )
     code_style = ParagraphStyle(
         "Code",
-        parent=styles["Code"],
+        parent=styles["Normal"],
         fontName="Courier",
-        fontSize=8.8,
+        fontSize=8.6,
         leading=11,
-        textColor=colors.HexColor("#002b36"),
+        leftIndent=0,
+        firstLineIndent=0,
+        spaceBefore=0,
+        spaceAfter=0,
+        textColor=colors.HexColor("#16323f"),
     )
     table_header_style = ParagraphStyle(
         "TableHeader",
@@ -630,6 +637,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
     page_width, _page_height = A4
     content_width = page_width - 2 * 28 * mm
     pending_table_caption = None
+    seen_section = False
 
     for kind, text in blocks:
         escaped = reportlab_inline(text)
@@ -640,10 +648,20 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
         elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
             story.append(Paragraph(escaped, date_style))
         elif kind == "h2":
-            if text == "5. Conclusions":
+            if seen_section:
                 story.append(Spacer(1, 8))
-                story.append(HRFlowable(width="48%", thickness=0.6, color=colors.black, spaceBefore=4, spaceAfter=18))
+                story.append(
+                    HRFlowable(
+                        width="48%",
+                        thickness=0.6,
+                        color=colors.black,
+                        spaceBefore=4,
+                        spaceAfter=18,
+                        hAlign="CENTER",
+                    )
+                )
             story.append(Paragraph(escaped, section_style))
+            seen_section = True
         elif kind == "h3":
             story.append(Paragraph(escaped, subsection_style))
         elif kind == "bullet":
@@ -654,11 +672,12 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             table.setStyle(
                 TableStyle(
                     [
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f0f1f3")),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                        ("TOPPADDING", (0, 0), (-1, -1), 6),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f2f3f5")),
+                        ("BOX", (0, 0), (-1, -1), 0.25, colors.HexColor("#d0d4da")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                        ("TOPPADDING", (0, 0), (-1, -1), 7),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
                     ]
                 )
             )
