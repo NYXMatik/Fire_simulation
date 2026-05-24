@@ -57,6 +57,38 @@ Mateusz Janowski
 
 ## 1. Introduction
 
+### 1.1 Motivation
+
+Wildfire propagation is a spatial process shaped by the interaction between
+fuel availability, terrain structure, wind direction and local barriers. Even a
+simple simulation can therefore become useful when it allows these mechanisms
+to be studied in a controlled environment. The motivation of this project is to
+construct an interactive fire-spread model that starts from a real map image,
+translates visible land-cover classes into simulation states and then applies a
+cellular-automaton rule set to approximate the evolution of fire over time.
+
+The project is not intended to replace operational wildfire forecasting systems.
+Its purpose is narrower and more exploratory: to provide a transparent modelling
+environment in which the influence of terrain type, ignition location, wind
+direction, water barriers and controlled burnout can be inspected directly. This
+is particularly useful for understanding how local transition rules produce
+larger spatial patterns. Because the model is implemented as an interactive
+simulation, the user can modify the initial and boundary conditions and observe
+how the resulting fire front changes.
+
+### 1.2 Scientific Questions
+
+The project is guided by the following scientific questions:
+
+- How can a real map image be converted into a practical cellular-automaton
+  environment for simulating fire spread in realistic spatial settings?
+- How do different terrain classes, such as forest, open green areas and
+  buildings, influence the rate and spatial pattern of fire propagation?
+- How do wind direction and water barriers affect the direction, intensity and
+  possible containment of fire spread?
+- How does the initial ignition location influence the final burned area and
+  the overall geometry of the fire-spread pattern?
+
 ## 2. Theoretical Background
 
 ## 3. Simulation
@@ -283,6 +315,7 @@ def pdf_escape(text: str) -> str:
 def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
     blocks: list[tuple[str, str]] = []
     paragraph: list[str] = []
+    bullet: list[str] = []
     table_lines: list[str] = []
     in_code = False
     code_lines: list[str] = []
@@ -291,6 +324,11 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
         if paragraph:
             blocks.append(("p", " ".join(paragraph)))
             paragraph.clear()
+
+    def flush_bullet() -> None:
+        if bullet:
+            blocks.append(("bullet", plain_inline(" ".join(bullet))))
+            bullet.clear()
 
     def flush_table() -> None:
         if table_lines:
@@ -301,6 +339,7 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
         line = raw_line.rstrip()
         if line.startswith("```"):
             flush_table()
+            flush_bullet()
             flush_paragraph()
             if in_code:
                 blocks.append(("code", "\n".join(code_lines)))
@@ -316,35 +355,45 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
 
         if not line:
             flush_table()
+            flush_bullet()
             flush_paragraph()
             continue
 
         if line.startswith("|") and line.endswith("|"):
             flush_paragraph()
+            flush_bullet()
             table_lines.append(line)
             continue
 
         if line.startswith("# "):
             flush_table()
+            flush_bullet()
             flush_paragraph()
             blocks.append(("h1", plain_inline(line[2:].strip())))
         elif line.startswith("## "):
             flush_table()
+            flush_bullet()
             flush_paragraph()
             blocks.append(("h2", plain_inline(line[3:].strip())))
         elif line.startswith("### "):
             flush_table()
+            flush_bullet()
             flush_paragraph()
             blocks.append(("h3", plain_inline(line[4:].strip())))
         elif line.startswith("- "):
             flush_table()
+            flush_bullet()
             flush_paragraph()
-            blocks.append(("bullet", plain_inline(line[2:].strip())))
+            bullet.append(line[2:].strip())
+        elif bullet and line.startswith("  "):
+            bullet.append(line.strip())
         else:
             flush_table()
+            flush_bullet()
             paragraph.append(plain_inline(line.strip()))
 
     flush_table()
+    flush_bullet()
     flush_paragraph()
     if code_lines:
         blocks.append(("code", "\n".join(code_lines)))
