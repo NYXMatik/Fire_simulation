@@ -16,6 +16,8 @@ TEST_DOCUMENTATION_URL = f"{REPOSITORY_URL}/blob/main/tests/TESTING.txt"
 BEHAVIORAL_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_behavioral.py"
 PARAMETER_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_parameters.py"
 STABILITY_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_stability.py"
+PROPAGATOR_URL = "https://doi.org/10.3390/fire3030026"
+ALEXANDRIDIS_URL = "https://doi.org/10.1016/j.amc.2008.06.046"
 
 
 def read_json(path: Path | None) -> dict:
@@ -103,6 +105,59 @@ The project is guided by the following scientific questions:
   the overall geometry of the fire-spread pattern?
 
 ## 2. Theoretical Background
+
+### 2.1 Cellular Automata
+
+Cellular automata are discrete spatial models in which the environment is
+divided into cells. Each cell has a state, and the state in the next simulation
+step depends on the cell itself and on neighbouring cells. This is a natural
+way to describe wildfire spread, because a fire front grows through many local
+interactions between burning cells, nearby fuel and environmental constraints
+rather than through one global movement rule [1][2].
+
+This approach is especially effective in this project because the converted map
+already has a grid-like structure. Forest, green terrain, buildings, water,
+burning cells and burned cells can all be represented directly as cell states,
+while ignition, burnout, water blocking, controlled burns and wind effects can
+be implemented as local transition rules. As a result, the model remains simple
+enough to inspect and test, but still expressive enough to reproduce the main
+spatial mechanisms discussed in cellular-automata wildfire models [1][2].
+
+### 2.2 Probabilities of Spread
+
+The model uses terrain-dependent probabilities of spread because different land
+cover types do not burn in the same way. The PROPAGATOR cellular-automata
+wildfire simulator [1] uses land-cover classes with different spread
+probabilities and velocities, and this project follows the same idea at an
+application scale suitable for interactive map-based simulation. Forest is
+therefore treated as more fire-prone than open green terrain, while building
+areas are represented as much less flammable than vegetation.
+
+In the implementation, the raw literature-inspired values are scaled to the
+visual time step of the application. The current terrain parameters use forest
+probability 0.35 and velocity 200 m/min, green-terrain probability 0.475 and
+velocity 120 m/min, and a building/WUI proxy probability 0.275 and velocity
+60 m/min. After scaling, the interactive baseline probability for green terrain
+is 0.09, with forest and building values adjusted relative to it. This keeps
+the simulation readable for a user while preserving the expected ordering of
+spread intensity from the literature [1].
+
+### 2.3 Wind Influence
+
+Wind is included because it changes not only how much fire spreads, but also
+where it spreads. Alexandridis et al. [2] model wind as a directional modifier:
+spread is strengthened when the candidate spread direction is aligned with the
+wind and weakened when it is opposed to the wind. The project uses this same
+principle so that wind creates a visible spatial bias rather than simply
+increasing all ignition probabilities equally.
+
+In practical terms, a user can set wind direction with the keyboard, and the
+simulation then favours cells located downwind from active fire. The nominal
+active wind speed is 10, with empirical constants 0.045 and 0.131 taken from
+the same form of wind influence described in [2]. When wind is disabled, the
+wind multiplier is neutral, so fire spread is controlled only by terrain,
+barriers and stochastic ignition. This makes it possible to compare no-wind and
+wind-driven scenarios inside the same model.
 
 ## 3. Simulation
 
@@ -203,11 +258,23 @@ assert means[-1] > means[0] * 2
 The passing criteria have two parts. First, the sequence of mean burning-cell
 counts must be monotonically non-decreasing as ignition probability increases.
 Second, the highest tested probability must produce more than twice as many
-active burning cells as the lowest tested probability. The first condition
-verifies directionality; the second verifies that the parameter has practical
-effect at the scale of the simulation. This kind of sensitivity test is a
-standard substitute for direct calibration when target empirical values are not
-available.
+active burning cells as the lowest tested probability. In the current run, the
+forest case increased from 980.25 mean burning cells at probability 0.08 to
+2025.00 at probability 0.26. Green terrain increased from 21.00 at probability
+0.02 to 539.50 at probability 0.09, and buildings increased from 1.50 at
+probability 0.002 to 59.75 at probability 0.03. These values show that the
+parameter has a visible practical effect, not only a formally correct ordering.
+
+The same test group also checks spread-speed and wind parameters. Increasing
+the spread-speed multiplier raised the mean burning-cell count from 195.00 to
+1035.25 for forest, from 167.25 to 889.00 for green terrain, and from 61.75 to
+879.00 for buildings. Wind-direction tests produced clear mean shifts of the
+fire centre: west wind moved it -6.86 cells on the x axis, east wind moved it
++6.98 cells on the x axis, north wind moved it -7.10 cells on the y axis, and
+south wind moved it +7.06 cells on the y axis. The burnout timing test also
+showed the expected temporal effect: increasing FIRE_BURNOUT_START from 30 to
+120 iterations raised mean active burning cells from 3.00 to 1225.00 and
+reduced mean burned-out cells from 1222.00 to 0.00.
 
 ### 4.4 Stability and Reproducibility Tests
 
@@ -228,19 +295,30 @@ These are aggregate measures: they do not require identical maps for different
 seeds, but they do detect excessive instability in the simulated spread.
 
 ```python
-assert burning_summary["cv"] <= scenario.max_burning_cv
-assert burning_summary["range"] <= scenario.max_burning_range
+assert burning_summary["cv"] <= 0.13
+assert burning_summary["range"] <= 420
 ```
 
-The passing criteria define an admissible threshold of stochastic variation. In
-the forest no-wind scenario, the coefficient of variation must remain below the
-scenario-specific bound and the range of burning-cell counts must not exceed the
-accepted limit. This is not a claim that all stochastic runs are identical.
-Rather, it means that the model remains statistically controlled across seeds.
-The same module also contains reproducibility tests, where the same scenario is
-run twice with the same seed and the final metrics must match exactly. Thus the
-model is allowed to be stochastic across different seeds, but it must be
-deterministic and reproducible when the seed is fixed.
+The stability checks use explicit scenario thresholds and report the measured
+values. For uniform forest without wind, the burning-cell values across seeds
+1-12 were 989, 850, 925, 1097, 926, 1093, 1048, 897, 1219, 881, 1089 and 960.
+This gives a mean of 997.83, standard deviation 111.31, coefficient of
+variation 0.112 and range 369, below the accepted limits of 0.13 and 420. For
+uniform green terrain without wind, the mean was 725.00, standard deviation
+84.24, coefficient of variation 0.116 and range 311. For the converted-map
+forest crop, the mean was 987.83, standard deviation 102.76, coefficient of
+variation 0.104 and range 373.
+
+The remaining stability scenarios also stayed within their explicit bounds. In
+the uniform forest east-wind case, the mean burning-cell count was 382.08, the
+standard deviation was 65.71, the coefficient of variation was 0.172 and the
+range was 214; the mean wind bias was 7.87, above the required minimum of 6.50.
+For the uniform building no-wind case, the mean was 230.25 burning cells,
+standard deviation 36.84 and range 112, below the accepted limits of 45.00 and
+140. The same module also contains reproducibility tests, where the same
+scenario is run twice with seed 7 and the final metrics must match exactly.
+Thus the model is allowed to be stochastic across different seeds, but it must
+be deterministic and reproducible when the seed is fixed.
 
 ### 4.5 Test Documentation and Generated Results
 
@@ -351,6 +429,16 @@ calibrate parameters more precisely and assess predictive accuracy. The current
 implementation provides a strong foundation for that development: it is
 user-friendly, inspectable and already equipped with automated tests and
 reproducible reporting through GitHub Actions.
+
+## References
+
+[1] Trucchia, A. et al. (2020). [PROPAGATOR: An Operational Cellular-Automata
+Based Wildfire Simulator]({PROPAGATOR_URL}). Fire, 3(3), 26.
+
+[2] Alexandridis, A. et al. (2008). [A cellular automata model for forest fire
+spread prediction: The case of the wildfire that swept through Spetses Island
+in 1990]({ALEXANDRIDIS_URL}). Applied Mathematics and Computation, 204(1),
+191-201.
 """
 
 
@@ -386,6 +474,8 @@ def reportlab_inline(text: str) -> str:
         .replace(">", "&gt;")
     )
     escaped = "".join(chunks).replace("`", "")
+    escaped = re.sub(r"(?<!\w)\[1\](?!\w)", f'<a href="{PROPAGATOR_URL}" color="blue">[1]</a>', escaped)
+    escaped = re.sub(r"(?<!\w)\[2\](?!\w)", f'<a href="{ALEXANDRIDIS_URL}" color="blue">[2]</a>', escaped)
     return re.sub(r"\*([^*\n]+)\*", r"<i>\1</i>", escaped)
 
 
