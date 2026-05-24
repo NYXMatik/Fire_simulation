@@ -89,7 +89,7 @@ barrier and intervention conditions. At the same time, the user interface and
 the model logic are deliberately kept clear and accessible. This makes the
 application easy to operate while still allowing advanced propagation mechanisms
 to be examined: terrain-dependent ignition, wind-driven spread, water blocking
-and controlled burnout can all be studied within the same interface.
+and burned-cell containment can all be studied within the same interface.
 
 ### 1.2 Scientific Questions
 
@@ -195,13 +195,15 @@ is applied is given in Equation (1).
 
 Equation: IGNITION_PROBABILITY
 
-In Equation (1), c is the terrain class of the neighbouring candidate cell,
+This equation uses c as the terrain class of the neighbouring candidate cell.
 P_ignite(c) is the probability that this cell ignites during one simulation
 update, p_raw(c) is the raw probability selected from the literature-inspired
 values in Table 1, and s is the application scaling factor. The scaling factor
 is chosen from the green-terrain reference case, so s = 0.09 / 0.475 = 0.1895.
 This means that grassland keeps a readable application probability of about
-0.09, while the other terrain classes are scaled by the same factor.
+0.09, while the other terrain classes are scaled by the same factor. Water and
+burned cells are assigned 0 because they do not provide available fuel for
+further propagation.
 
 The resulting project parameters calculated from Equation (1) are summarized
 in Table 2.
@@ -213,17 +215,15 @@ Table 2: Scaled ignition probabilities and relative spread speeds used in the pr
 | Forest | 0.35 | 0.35 · 0.1895 = 0.0663 | 200 / 120 = 1.67 |
 | Green terrain | 0.475 | 0.475 · 0.1895 = 0.09 | 120 / 120 = 1.00 |
 | Buildings | 0.275 | 0.275 · 0.1895 = 0.0521 | 60 / 120 = 0.50 |
-| Water | 0 | 0 | - |
+| Water / burned | 0 | 0 | - |
 
 Forest can therefore spread more effectively than grassland even though its
 single-step ignition probability is lower. The ignition probability controls
 whether an individual neighbouring cell catches fire during one update, while
 the relative speed controls how quickly burning cells advance through that
-terrain once propagation is underway. In this project, forest is assigned the
-fire-prone-conifers speed from Table 1, which is 1.67 times the grassland
-reference speed. As a result, forest produces a stronger overall spread
-intensity because its faster propagation compensates for its lower probability
-in Equation (1).
+terrain once propagation is underway. Since forest has 1.67 times the grassland
+reference speed, it can produce a stronger overall spread intensity because its
+faster propagation compensates for its lower probability in Equation (1).
 
 ### 2.3 Wind Influence
 
@@ -234,13 +234,42 @@ wind and weakened when it is opposed to the wind. The project uses this same
 principle so that wind creates a visible spatial bias rather than simply
 increasing all ignition probabilities equally.
 
-In practical terms, a user can set wind direction with the keyboard, and the
-simulation then favours cells located downwind from active fire. The nominal
-active wind speed is 10, with empirical constants 0.045 and 0.131 taken from
-the same form of wind influence described in [2]. When wind is disabled, the
-wind multiplier is neutral, so fire spread is controlled only by terrain,
-barriers and stochastic ignition. This makes it possible to compare no-wind and
-wind-driven scenarios inside the same model.
+The wind multiplier used in the project is given in Equation (2).
+
+Equation: WIND_MULTIPLIER
+
+This equation defines P_w as the wind multiplier, V as wind speed, theta as the
+angle between the wind direction and the candidate spread direction, and c1 and
+c2 as empirical constants from Alexandridis et al. [2]. The project uses
+c1 = 0.045 and c2 = 0.131, matching the values used in that model. Because the
+application interface lets the user choose wind direction but does not ask for
+measured wind speed, V is fixed to 10 when wind is enabled. This value is
+treated as a nominal active wind speed that makes the directional effect visible
+without adding another uncertain user-controlled parameter.
+
+The dependence on theta controls whether wind helps or suppresses spread. When
+the spread direction follows the wind, theta = 0 degrees and cos(theta) = 1, so
+the directional term c2(cos(theta) - 1) becomes zero and the multiplier grows
+with exp(V c1). When spread is perpendicular to the wind, cos(theta) = 0, so the
+directional part becomes -c2 and the multiplier is much smaller. When spread is
+opposed to the wind, cos(theta) = -1, which makes the directional penalty even
+stronger. When wind is disabled, the multiplier is set to 1 so that Equation (1)
+remains unchanged.
+
+The terrain probability, wind multiplier and terrain spread speed are then
+combined into the final probability used for one simulation update in
+Equation (3).
+
+Equation: EFFECTIVE_PROBABILITY
+
+This equation defines P_effective(c) as the probability actually tested during
+the cell update. P_ignite(c) comes from Equation (1), P_w comes from Equation (2),
+and r(c) is the relative spread speed from Table 2. The value r(c) is fixed by
+terrain type rather than by the user because it represents the nominal fuel
+spread behaviour inherited from the literature-based velocity ordering in
+Table 1. The product P_ignite(c) · P_w is clamped to the valid probability range
+before the speed exponent is applied, keeping the stochastic update stable even
+under favourable wind alignment.
 
 ## 3. Simulation
 
@@ -268,7 +297,7 @@ across random seeds and whether identical seeded runs can be reproduced exactly.
 Behavioral tests are used to verify qualitative properties that should hold
 independently of a particular empirical data set. They are especially important
 in this project because the simulation contains explicit modelling assumptions:
-wind should create directional bias, water and completed controlled-burn cells
+wind should create directional bias, water and burned cells
 should stop propagation, and terrain type should influence ignition likelihood
 and spread speed. These tests are located in
 [`test_behavioral.py`]({BEHAVIORAL_TESTS_URL}).
@@ -335,29 +364,22 @@ to a controlled parameter change.
 
 ```python
 assert means == sorted(means)
-assert means[-1] > means[0] * 2
+assert means[-1] > means[0] * min_growth_factor
 ```
 
 The passing criteria have two parts. First, the sequence of mean burning-cell
 counts must be monotonically non-decreasing as ignition probability increases.
-Second, the highest tested probability must produce more than twice as many
-active burning cells as the lowest tested probability. In the current run, the
-forest case increased from 980.25 mean burning cells at probability 0.08 to
-2025.00 at probability 0.26. Green terrain increased from 21.00 at probability
-0.02 to 539.50 at probability 0.09, and buildings increased from 1.50 at
-probability 0.002 to 59.75 at probability 0.03. These values show that the
-parameter has a visible practical effect, not only a formally correct ordering.
+Second, the highest tested probability must produce a sufficient increase over
+the lowest tested probability, expressed through the configured
+min_growth_factor threshold. This keeps the report focused on the test logic
+rather than on one particular run's numeric output.
 
 The same test group also checks spread-speed and wind parameters. Increasing
-the spread-speed multiplier raised the mean burning-cell count from 195.00 to
-1035.25 for forest, from 167.25 to 889.00 for green terrain, and from 61.75 to
-879.00 for buildings. Wind-direction tests produced clear mean shifts of the
-fire centre: west wind moved it -6.86 cells on the x axis, east wind moved it
-+6.98 cells on the x axis, north wind moved it -7.10 cells on the y axis, and
-south wind moved it +7.06 cells on the y axis. The burnout timing test also
-showed the expected temporal effect: increasing FIRE_BURNOUT_START from 30 to
-120 iterations raised mean active burning cells from 3.00 to 1225.00 and
-reduced mean burned-out cells from 1222.00 to 0.00.
+the spread-speed multiplier must increase the measured spread, wind-direction
+tests must move the fire centre along the selected wind axis, and burnout timing
+tests must show that delaying burnout leaves fire active for longer. The exact
+measured values for the current run are available in `pytest-output.txt` and
+`pytest-report.html`, which are generated in the workflow artifact.
 
 ### 4.4 Stability and Reproducibility Tests
 
@@ -378,30 +400,20 @@ These are aggregate measures: they do not require identical maps for different
 seeds, but they do detect excessive instability in the simulated spread.
 
 ```python
-assert burning_summary["cv"] <= 0.13
-assert burning_summary["range"] <= 420
+assert burning_summary["cv"] <= max_cv
+assert burning_summary["range"] <= max_range
 ```
 
-The stability checks use explicit scenario thresholds and report the measured
-values. For uniform forest without wind, the burning-cell values across seeds
-1-12 were 989, 850, 925, 1097, 926, 1093, 1048, 897, 1219, 881, 1089 and 960.
-This gives a mean of 997.83, standard deviation 111.31, coefficient of
-variation 0.112 and range 369, below the accepted limits of 0.13 and 420. For
-uniform green terrain without wind, the mean was 725.00, standard deviation
-84.24, coefficient of variation 0.116 and range 311. For the converted-map
-forest crop, the mean was 987.83, standard deviation 102.76, coefficient of
-variation 0.104 and range 373.
-
-The remaining stability scenarios also stayed within their explicit bounds. In
-the uniform forest east-wind case, the mean burning-cell count was 382.08, the
-standard deviation was 65.71, the coefficient of variation was 0.172 and the
-range was 214; the mean wind bias was 7.87, above the required minimum of 6.50.
-For the uniform building no-wind case, the mean was 230.25 burning cells,
-standard deviation 36.84 and range 112, below the accepted limits of 45.00 and
-140. The same module also contains reproducibility tests, where the same
-scenario is run twice with seed 7 and the final metrics must match exactly.
-Thus the model is allowed to be stochastic across different seeds, but it must
-be deterministic and reproducible when the seed is fixed.
+The stability checks use explicit scenario thresholds and report aggregate
+values for each scenario. The coefficient of variation must stay below max_cv,
+the range must stay below max_range, and wind-driven scenarios must preserve the
+minimum required wind-bias direction. This means the model is allowed to be
+stochastic across different seeds, but its variation must remain bounded and
+interpretable. The same module also contains reproducibility tests, where the
+same scenario is run twice with a fixed seed and the final metrics must match
+exactly. The detailed per-seed values and aggregate summaries for the current
+run are available in `pytest-output.txt` and `pytest-report.html`, which are
+included in the generated artifact.
 
 ### 4.5 Test Documentation and Generated Results
 
@@ -446,14 +458,14 @@ capable, user-friendly fire-spread simulation environment. The main strength of
 the application is that it keeps interaction simple without making the model
 hard to understand, while retaining modelling depth. A user can load a
 converted map, choose an ignition point, change wind, place water barriers or
-controlled-burn lines and immediately observe how these decisions affect the
+burned-cell barriers and immediately observe how these decisions affect the
 evolving fire front.
 
 This combination gives the project both practical and analytical value. The
 interface is easy to understand, but the behaviour behind it reflects several
 important mechanisms of fire propagation: terrain-dependent ignition,
-wind-driven spread, active blocking by water, intervention through controlled
-burnout and sensitivity to the initial fire location. The result is a model that
+wind-driven spread, active blocking by water, containment by burned cells and
+sensitivity to the initial fire location. The result is a model that
 is approachable for experimentation while still rich enough to study meaningful
 spatial fire dynamics.
 
@@ -480,11 +492,10 @@ interactive mechanisms. Wind can be added to the simulation and it changes the
 direction of propagation by biasing the active fire front toward the selected
 wind vector. Water can be added artificially during the simulation; once placed,
 it completely blocks the possibility of fire spreading through the water cells.
-Controlled burnout provides a second containment mechanism: an active
-controlled-burn line can be created by the user, and after it finishes burning
-it becomes a completed firebreak that prevents the fire from crossing. These
-features allow the user to compare free propagation, wind-driven propagation
-and interrupted propagation within the same environment.
+Burned cells provide the same kind of barrier after fuel has already been
+consumed: they do not ignite again and they stop further propagation through
+that location. These features allow the user to compare free propagation,
+wind-driven propagation and interrupted propagation within the same environment.
 
 The ignition-location question is answered by making the starting point an
 interactive part of the experiment. Placing the initial fire in a forest patch,
@@ -562,10 +573,27 @@ def reportlab_inline(text: str) -> str:
     escaped = re.sub(r"\*([^*\n]+)\*", r"<i>\1</i>", escaped)
     math_tokens = {
         "s = 0.09 / 0.475 = 0.1895": '<i>s = 0.09 / 0.475 = 0.1895</i>',
+        "c1 = 0.045 and c2 = 0.131": '<i>c</i><sub>1</sub><i> = 0.045 and c</i><sub>2</sub><i> = 0.131</i>',
+        "theta = 0 degrees": '<i>θ = 0 degrees</i>',
+        "cos(theta) = 1": '<i>cos(θ) = 1</i>',
+        "cos(theta) = 0": '<i>cos(θ) = 0</i>',
+        "cos(theta) = -1": '<i>cos(θ) = -1</i>',
+        "c2(cos(theta) - 1)": '<i>c</i><sub>2</sub><i>(cos(θ) - 1)</i>',
+        "exp(V c1)": '<i>exp(V c</i><sub>1</sub><i>)</i>',
+        "P_effective(c)": '<i>P</i><sub><i>effective</i></sub>(<i>c</i>)',
+        "P_effective": '<i>P</i><sub><i>effective</i></sub>',
         "P_ignite(c)": '<i>P</i><sub><i>ignite</i></sub>(<i>c</i>)',
         "P_ignite": '<i>P</i><sub><i>ignite</i></sub>',
+        "P_w": '<i>P</i><sub><i>w</i></sub>',
         "p_raw(c)": '<i>p</i><sub><i>raw</i></sub>(<i>c</i>)',
         "p_raw": '<i>p</i><sub><i>raw</i></sub>',
+        "V is": '<i>V</i> is',
+        "V as": '<i>V</i> as',
+        "V is fixed": '<i>V</i> is fixed',
+        "theta": '<i>θ</i>',
+        "c1": '<i>c</i><sub>1</sub>',
+        "c2": '<i>c</i><sub>2</sub>',
+        "r(c)": '<i>r</i>(<i>c</i>)',
     }
     for token in sorted(math_tokens, key=len, reverse=True):
         escaped = escaped.replace(token, math_tokens[token])
@@ -769,7 +797,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
         parent=styles["BodyText"],
         fontName="Times-Roman",
         fontSize=11,
-        leading=14,
+        leading=15,
         alignment=TA_JUSTIFY,
         firstLineIndent=0,
         spaceAfter=8,
@@ -1050,7 +1078,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
                     ("0,", "Times-Roman", 12, 0),
                     (" if ", "Times-Roman", 12, 0),
                     ("c", "Times-Italic", 12, 0),
-                    (" is water", "Times-Roman", 12, 0),
+                    (" is water or burned", "Times-Roman", 12, 0),
                 ],
             )
             p_cursor = self._draw_p_raw(case_x, bottom_y, 12)
@@ -1065,6 +1093,117 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             )
             canvas.setFont("Times-Roman", 12)
             canvas.drawRightString(self.width - 4, base_y - 2, "(1)")
+
+    class WindMultiplierEquation(Flowable):
+        def __init__(self, width: float) -> None:
+            super().__init__()
+            self.width = width
+            self.height = 42
+
+        def wrap(self, availWidth: float, availHeight: float) -> tuple[float, float]:
+            return self.width, self.height
+
+        def _draw_parts(self, x: float, y: float, parts: list[tuple[str, str, float, float]]) -> float:
+            cursor = x
+            for text, font, size, y_offset in parts:
+                self.canv.setFont(font, size)
+                self.canv.drawString(cursor, y + y_offset, text)
+                cursor += self.canv.stringWidth(text, font, size)
+            return cursor
+
+        def _draw_p_w(self, x: float, y: float, size: float = 13) -> float:
+            return self._draw_parts(
+                x,
+                y,
+                [
+                    ("P", "Times-Italic", size, 0),
+                    ("w", "Times-Italic", size * 0.62, -3.8),
+                ],
+            )
+
+        def draw(self) -> None:
+            start_x = self.width * 0.25
+            base_y = 20
+            cursor = self._draw_p_w(start_x, base_y, 13)
+            self._draw_parts(
+                cursor + 11,
+                base_y,
+                [
+                    ("= exp", "Times-Italic", 13, 0),
+                    ("[", "Times-Italic", 16, -1),
+                    ("V", "Times-Italic", 13, 0),
+                    ("(", "Times-Italic", 13, 0),
+                    ("c", "Times-Italic", 13, 0),
+                    ("1", "Times-Italic", 8, -3.8),
+                    (" + ", "Times-Italic", 13, 0),
+                    ("c", "Times-Italic", 13, 0),
+                    ("2", "Times-Italic", 8, -3.8),
+                    ("(cos ", "Times-Italic", 13, 0),
+                    ("θ", "Times-Italic", 13, 0),
+                    (" - 1))", "Times-Italic", 13, 0),
+                    ("]", "Times-Italic", 16, -1),
+                ],
+            )
+            self.canv.setFont("Times-Roman", 12)
+            self.canv.drawRightString(self.width - 4, base_y - 2, "(2)")
+
+    class EffectiveProbabilityEquation(Flowable):
+        def __init__(self, width: float) -> None:
+            super().__init__()
+            self.width = width
+            self.height = 42
+
+        def wrap(self, availWidth: float, availHeight: float) -> tuple[float, float]:
+            return self.width, self.height
+
+        def _draw_parts(self, x: float, y: float, parts: list[tuple[str, str, float, float]]) -> float:
+            cursor = x
+            for text, font, size, y_offset in parts:
+                self.canv.setFont(font, size)
+                self.canv.drawString(cursor, y + y_offset, text)
+                cursor += self.canv.stringWidth(text, font, size)
+            return cursor
+
+        def _draw_probability(self, x: float, y: float, label: str, size: float = 13) -> float:
+            return self._draw_parts(
+                x,
+                y,
+                [
+                    ("P", "Times-Italic", size, 0),
+                    (label, "Times-Italic", size * 0.62, -3.8),
+                    ("(c)", "Times-Italic", size, 0),
+                ],
+            )
+
+        def _draw_p_w(self, x: float, y: float, size: float = 13) -> float:
+            return self._draw_parts(
+                x,
+                y,
+                [
+                    ("P", "Times-Italic", size, 0),
+                    ("w", "Times-Italic", size * 0.62, -3.8),
+                ],
+            )
+
+        def draw(self) -> None:
+            start_x = self.width * 0.19
+            base_y = 20
+            cursor = self._draw_probability(start_x, base_y, "effective", 13)
+            cursor = self._draw_parts(cursor + 11, base_y, [("= 1 - (1 - ", "Times-Roman", 13, 0)])
+            cursor = self._draw_probability(cursor, base_y, "ignite", 13)
+            cursor = self._draw_parts(cursor + 4, base_y, [(" · ", "Times-Roman", 13, 0)])
+            cursor = self._draw_p_w(cursor, base_y, 13)
+            cursor = self._draw_parts(cursor, base_y, [(")", "Times-Roman", 13, 0)])
+            self._draw_parts(
+                cursor + 1,
+                base_y,
+                [
+                    ("r", "Times-Italic", 8.5, 7.0),
+                    ("(c)", "Times-Italic", 8.5, 7.0),
+                ],
+            )
+            self.canv.setFont("Times-Roman", 12)
+            self.canv.drawRightString(self.width - 4, base_y - 2, "(3)")
 
     story = []
     blocks = markdown_blocks(markdown)
@@ -1103,6 +1242,10 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
         elif kind == "equation":
             if text == "IGNITION_PROBABILITY":
                 story.append(IgnitionEquation(content_width))
+            elif text == "WIND_MULTIPLIER":
+                story.append(WindMultiplierEquation(content_width))
+            elif text == "EFFECTIVE_PROBABILITY":
+                story.append(EffectiveProbabilityEquation(content_width))
             else:
                 story.append(Paragraph(escaped, equation_style))
         elif kind == "code":
