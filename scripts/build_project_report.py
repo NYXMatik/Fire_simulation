@@ -59,34 +59,20 @@ Mateusz Janowski
 
 ### 4.1 Testing Strategy and Types of Testing
 
-The evaluation of the fire-spread model must be interpreted in relation to the
-available evidence. The project does not include an independent empirical data
-set describing a real fire event on the analysed maps. Consequently, the model
-cannot be validated by direct comparison between simulated fire perimeters and
-observed fire perimeters at successive time steps. This limitation does not make
-evaluation impossible, but it changes its methodological character. Instead of
-claiming empirical predictive accuracy, the tests verify whether the implemented
-cellular-automaton model is internally coherent, theoretically plausible, and
-stable under controlled experimental conditions.
+The evaluation of the fire-spread model is constrained by the absence of an
+independent empirical data set for the analysed maps. Consequently, the model
+cannot be validated through direct comparison between simulated and observed
+fire perimeters at successive time steps. The evaluation therefore focuses on
+structural verification: whether the implemented cellular-automaton model is
+internally coherent, theoretically plausible and stable under controlled
+experimental conditions.
 
-For this reason, the test suite uses three complementary forms of model
-assessment. Behavioral tests examine whether the main qualitative rules of the
-model hold in controlled scenarios. Parameter sensitivity tests verify whether
-changes in declared model parameters produce the expected direction of change in
-the simulation output. Stability and reproducibility tests evaluate whether the
-stochastic component of the model remains bounded across random seeds and
-whether identical seeded runs can be reproduced exactly.
-
-This strategy is appropriate for a mechanistic simulation without calibration
-data. A wildfire model based on cellular automata is defined by local transition
-rules, terrain-dependent ignition probabilities, wind effects, and state changes
-between unburned, burning, and burned cells. If reference observations are not
-available, the model should be tested by isolating these mechanisms and
-verifying their consequences. The tests therefore answer questions such as:
-does fire spread symmetrically in the absence of wind, do terrain classes modify
-spread in the expected order, do ignition probabilities actually control fire
-growth, and does stochastic variation remain within acceptable aggregate
-bounds?
+The test suite applies three complementary forms of assessment. Behavioral
+tests examine whether qualitative model rules hold in controlled scenarios.
+Parameter sensitivity tests verify whether changes in declared model parameters
+produce the expected direction of change in simulation outputs. Stability and
+reproducibility tests evaluate whether stochastic variation remains bounded
+across random seeds and whether identical seeded runs can be reproduced exactly.
 
 ### 4.2 Behavioral Tests
 
