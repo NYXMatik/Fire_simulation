@@ -1,6 +1,6 @@
 # Fire Simulation
 
-[![Tests](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml/badge.svg)](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml)
+[![Project Report](https://github.com/NYXMatik/Fire_simulation/actions/workflows/project-report.yml/badge.svg)](https://github.com/NYXMatik/Fire_simulation/actions/workflows/project-report.yml)
 
 Interactive cellular-automaton simulation of fire spread on a converted map.
 The model supports terrain-dependent spread, wind bias, water barriers, and
@@ -65,8 +65,10 @@ Detailed formal documentation for every test case is available in
 GitHub Actions runs the test suite on every push to `main`, on pull requests,
 and manually from the Actions tab.
 
-Each run uploads the `fire-simulation-test-report` artifact containing:
+Each run of the project-report workflow executes the test suite and uploads the
+`fire-simulation-project-report` artifact containing:
 
+- `fire-simulation-project-report.pdf` - formal project report
 - `fire-simulation-test-report.html` - custom report with summary chart and per-test output
 - `pytest-report.html` - standard pytest-html report
 - `pytest-report.json` - structured pytest data
@@ -74,13 +76,7 @@ Each run uploads the `fire-simulation-test-report` artifact containing:
 - `pytest-output.txt` - full console output
 
 The workflow is available here:
-[Tests workflow](https://github.com/NYXMatik/Fire_simulation/actions/workflows/tests.yml).
-
-The repository also includes a formal project-report workflow:
 [Project Report workflow](https://github.com/NYXMatik/Fire_simulation/actions/workflows/project-report.yml).
-It generates the `fire-simulation-project-report` artifact with
-`fire-simulation-project-report.pdf` and the current test evidence used by the
-evaluation section.
 
 ## Model Notes
 

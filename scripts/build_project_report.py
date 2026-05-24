@@ -10,7 +10,6 @@ from pathlib import Path
 
 
 REPOSITORY_URL = "https://github.com/NYXMatik/Fire_simulation"
-TEST_WORKFLOW_URL = f"{REPOSITORY_URL}/actions/workflows/tests.yml"
 REPORT_WORKFLOW_URL = f"{REPOSITORY_URL}/actions/workflows/project-report.yml"
 
 
@@ -58,192 +57,185 @@ Mateusz Janowski
 
 ## 4. Evaluation of the Model
 
-The evaluation of the model was designed under an important methodological
-constraint: no independent empirical fire-spread data set is available for the
-analysed map, and therefore the simulation cannot be validated by direct
-point-by-point comparison with an observed historical fire event. In such a
-situation, the appropriate verification strategy is not to claim predictive
-accuracy in an absolute sense, but to examine whether the implemented model is
-internally coherent, reproducible under controlled assumptions, and consistent
-with the theoretical mechanisms it is intended to represent. The test suite
-therefore evaluates model behaviour through controlled scenarios, parameter
-sensitivity analysis, and stochastic stability checks.
+### 4.1 Testing Strategy and Types of Testing
 
-This distinction is essential. A cellular-automaton wildfire model is a
-mechanistic approximation: its credibility depends on whether local transition
-rules, terrain-dependent probabilities, wind effects, and intervention
-mechanisms produce responses that are theoretically plausible. Since the project
-does not include calibrated observational data, the tests are formulated as
-structural and behavioural validation. They verify that the model reacts in the
-correct direction when assumptions are changed, that important limiting cases
-are handled correctly, and that random variation remains bounded rather than
-dominating the simulated dynamics.
+The evaluation of the fire-spread model must be interpreted in relation to the
+available evidence. The project does not include an independent empirical data
+set describing a real fire event on the analysed maps. Consequently, the model
+cannot be validated by direct comparison between simulated fire perimeters and
+observed fire perimeters at successive time steps. This limitation does not make
+evaluation impossible, but it changes its methodological character. Instead of
+claiming empirical predictive accuracy, the tests verify whether the implemented
+cellular-automaton model is internally coherent, theoretically plausible, and
+stable under controlled experimental conditions.
 
-The automated test suite is stored in the repository under `tests/` and is
-divided into three complementary groups: behavioral tests, parameter sensitivity
-tests, and stability and reproducibility tests. The full formal description of
-all test cases is available in `tests/TESTING.txt`. That document specifies the
-objective, input conditions, execution procedure, measured evidence, and
-acceptance criteria for every test. The GitHub repository also generates
-machine-readable and human-readable test results through GitHub Actions. The
-main test workflow is stored in `.github/workflows/tests.yml` and is available
-in GitHub Actions as [`Tests`]({TEST_WORKFLOW_URL}). During each run, the
-workflow executes pytest, creates structured and visual reports, and uploads
-them as the `fire-simulation-test-report` artifact. The artifact contains:
+For this reason, the test suite uses three complementary forms of model
+assessment. Behavioral tests examine whether the main qualitative rules of the
+model hold in controlled scenarios. Parameter sensitivity tests verify whether
+changes in declared model parameters produce the expected direction of change in
+the simulation output. Stability and reproducibility tests evaluate whether the
+stochastic component of the model remains bounded across random seeds and
+whether identical seeded runs can be reproduced exactly.
 
-- `fire-simulation-test-report.html`, a custom summary report with an outcome
-  chart, per-test durations, and captured diagnostic output;
-- `pytest-report.html`, the standard browsable pytest-html report;
-- `pytest-report.json`, structured pytest data used by the custom report
-  generator;
-- `pytest-junit.xml`, a JUnit-compatible result file for external tools;
-- `pytest-output.txt`, the complete console output, including printed model
-  metrics from individual tests.
+This strategy is appropriate for a mechanistic simulation without calibration
+data. A wildfire model based on cellular automata is defined by local transition
+rules, terrain-dependent ignition probabilities, wind effects, and state changes
+between unburned, burning, and burned cells. If reference observations are not
+available, the model should be tested by isolating these mechanisms and
+verifying their consequences. The tests therefore answer questions such as:
+does fire spread symmetrically in the absence of wind, do terrain classes modify
+spread in the expected order, do ignition probabilities actually control fire
+growth, and does stochastic variation remain within acceptable aggregate
+bounds?
 
-This project-report workflow is stored in `.github/workflows/project-report.yml`
-and is available as [`Project Report`]({REPORT_WORKFLOW_URL}). It runs the same
-test-reporting path before generating this formal report, so the project report
-can be downloaded together with the current test evidence from the workflow
-artifacts. {outcome_sentence(total, counts)}
+### 4.2 Behavioral Tests
 
-### 4.1 Test Types
+Behavioral tests are used to verify qualitative properties that should hold
+independently of a particular empirical data set. They are especially important
+in this project because the simulation contains explicit modelling assumptions:
+wind should create directional bias, water and completed controlled-burn cells
+should stop propagation, and terrain type should influence ignition likelihood
+and spread speed. These tests are located in `tests/test_behavioral.py`.
 
-Behavioral tests verify qualitative properties that should hold independently
-of a particular calibration data set. They are used because the model contains
-explicit rules whose validity can be assessed directly: water should block fire
-propagation, completed controlled-burn areas should act as firebreaks, no-wind
-spread should be geometrically symmetric under deterministic ignition, and
-terrain classes should preserve the expected order of flammability. These tests
-are located in `tests/test_behavioral.py`.
+The first representative behavioral test is `test_no_wind_spread_is_isotropic`.
+Its purpose is to verify the geometric neutrality of the model when wind is
+absent. A synthetic 41 by 41 grid is filled with one terrain class, the ignition
+point is placed exactly at the centre, and the ignition probability is set to
+1.0. By eliminating random non-ignition, the test isolates the geometry of the
+neighbourhood update rule. If there is no wind and every eligible neighbour can
+ignite, the active fire front should expand symmetrically along the horizontal
+and vertical directions.
 
-Parameter sensitivity tests evaluate whether the model responds coherently to
-changes in its governing parameters. In the absence of empirical calibration,
-it is especially important to confirm that parameters are not merely declared
-in the code but actually control the resulting dynamics. For example, increasing
-an ignition probability should increase the final number of active burning
-cells, increasing a terrain spread-speed multiplier should make spread more
-extensive, and changing the wind vector should move the fire centre in the
-corresponding direction. These tests are located in `tests/test_parameters.py`.
+```python
+assert left == right
+assert up == down
+assert left + right == up + down
+```
 
-Stability and reproducibility tests evaluate the stochastic character of the
-simulation. Real fire spread is not deterministic: even under similar
-environmental conditions, local fuel continuity, turbulence, moisture
-heterogeneity, and small-scale ignition processes introduce variability. The
-implemented simulation reflects this uncertainty through probabilistic
-transition rules. Consequently, different random seeds are not expected to
-produce identical final states. Instead, the evaluation admits a defined
-threshold of similarity at the aggregate level, expressed through measures such
-as the coefficient of variation, standard deviation, and range of active burning
-cells. At the same time, when the same seed is supplied twice, the result must
-be exactly reproducible. These tests are located in `tests/test_stability.py`.
+The passing criteria are strict. The left and right radii of the burning region
+must be equal, the upward and downward radii must be equal, and the total
+horizontal diameter must match the total vertical diameter. A failure would
+indicate that the model introduces directional bias even when no wind is
+present, which would undermine later interpretation of wind-driven spread.
 
-### 4.2 Behavioral Test Examples
-
-The converted-map terrain-order test verifies whether the terrain coefficients
-used by the model preserve the expected qualitative hierarchy on a real
-converted map. This is a behavioural validation test rather than a calibration
-test: it does not assert that the simulated number of burning cells is equal to
-an observed fire perimeter. Instead, it checks whether the model distinguishes
-between fuel classes in a theoretically defensible way. Forest terrain is
-expected to support faster spread than green terrain, whereas building terrain
-is expected to remain substantially less fire-prone. The test runs three seeded
-simulations for each selected terrain crop and compares average active fire
-counts through ratio-based acceptance criteria:
+The second representative behavioral test is
+`test_converted_map_literature_terrain_order_after_5s`. It evaluates whether
+different ignition points on the converted map preserve the intended terrain
+hierarchy. The test selects representative coordinates for forest, green
+terrain, and buildings, extracts comparable local crops around these ignition
+points, and runs seeded simulations for the same duration. The objective is not
+to reproduce an observed fire perimeter, because no such reference data are
+available. Instead, the test checks whether the implemented terrain parameters
+produce a defensible ordering of spread intensity.
 
 ```python
 assert forest["mean_burning_cells"] > green["mean_burning_cells"] * 1.15
 assert buildings["mean_burning_cells"] < green["mean_burning_cells"] * 0.1
 ```
 
-The ratio-based formulation is deliberate. Exact cell counts would be an
-inappropriate criterion without observational reference data and would make the
-test sensitive to incidental stochastic variation. A relative comparison,
-however, directly evaluates whether the implemented terrain probabilities and
-spread speeds preserve the intended ordering of fire susceptibility.
+The passing criteria are ratio-based rather than exact-value-based. Forest must
+produce a mean number of burning cells at least 15 percent greater than green
+terrain, while buildings must remain below 10 percent of the green-terrain
+spread. This form of criterion is appropriate because stochastic simulations
+should not be judged by one exact cell count without observational calibration.
+The test instead verifies that the terrain-dependent ignition probabilities and
+spread speeds preserve the expected relative behaviour.
 
-The controlled-burn barrier test verifies the intended defensive intervention.
-A vertical line of completed controlled-burn cells is placed between an active
-fire source and the downwind side of the grid. Ignition probability is set to
-one, and wind pushes the fire toward the barrier. This creates a deliberately
-severe stress scenario: if any spread across the completed burnout line is
-observed, the firebreak mechanism is not functioning as specified. Under these
-conditions, no active fire may appear beyond the completed line:
+### 4.3 Parameter Sensitivity Tests
 
-```python
-assert not leaked_fire_points
-```
+Parameter sensitivity tests verify that model parameters are operationally
+meaningful. In a simulation without empirical calibration data, it is not enough
+to define parameters in the code; it must also be shown that changing them
+affects model dynamics in the expected direction. These tests are located in
+`tests/test_parameters.py`.
 
-This test is necessary because controlled burnout is not only a visual feature
-of the application. It is a modelling assumption about intervention: once the
-line has completed its burnout state, it must remove available fuel and prevent
-subsequent propagation through that cell sequence.
-
-### 4.3 Parameter Sensitivity Example
-
-One parameter test verifies that higher ignition probability increases spread.
-This is an important sensitivity check because, in a model without external
-calibration data, the internal role of each parameter must be demonstrated
-explicitly. The test is parameterized for forest, green terrain, and buildings.
-For each terrain type, it runs several deterministic seeds for multiple
-probability values, computes mean active fire counts, and checks monotonic
-growth:
+The representative test is
+`test_higher_ignition_probability_increases_spread`. The test is parameterized
+for forest, green terrain, and buildings. For each terrain class, it constructs
+a synthetic uniform grid, changes only the ignition probability for that
+terrain, runs several seeded simulations for each probability value, and
+computes the mean number of active burning cells at the end of the run. This
+design isolates the ignition probability from other map effects, making it
+possible to evaluate the response of the implemented model to a controlled
+parameter change.
 
 ```python
 assert means == sorted(means)
 assert means[-1] > means[0] * 2
 ```
 
-The test therefore verifies both directionality and practical magnitude. The
-monotonicity assertion checks that increasing the probability does not reduce
-spread, while the ratio condition requires the change to be large enough to be
-meaningful at the simulation scale. This is a common substitute for direct
-calibration when empirical target values are unavailable: the model is assessed
-by whether its response surface is qualitatively consistent with the governing
-assumptions.
+The passing criteria have two parts. First, the sequence of mean burning-cell
+counts must be monotonically non-decreasing as ignition probability increases.
+Second, the highest tested probability must produce more than twice as many
+active burning cells as the lowest tested probability. The first condition
+verifies directionality; the second verifies that the parameter has practical
+effect at the scale of the simulation. This kind of sensitivity test is a
+standard substitute for direct calibration when target empirical values are not
+available.
 
-### 4.4 Stability and Reproducibility Example
+### 4.4 Stability and Reproducibility Tests
 
-The stability tests run representative scenarios across seeds 1 through 12.
-They acknowledge that a probabilistic fire model should not produce identical
-outputs for different seeds. Fire spread is inherently sensitive to local
-conditions and small ignition events; therefore, enforcing determinism across
-different seeds would be conceptually wrong. The purpose of stability testing is
-instead to determine whether the aggregate behaviour remains controlled. For
-example, a uniform forest scenario without wind is evaluated using the
-coefficient of variation and the range of active burning cells. The accepted
-bounds are model-specific thresholds selected to identify excessive instability:
+Stability tests address the stochastic character of the simulation. Real fire
+spread is not deterministic: even under similar environmental conditions, local
+fuel continuity, moisture variability, turbulence, and small ignition events
+can produce different trajectories. The implemented model reflects this by
+using probabilistic transition rules. Therefore, different random seeds are not
+expected to produce identical fire patterns. What should be required is
+aggregate similarity within explicit thresholds.
+
+The representative test is
+`test_scenario_results_are_stable_across_seeds`. It runs the same scenario for
+seeds 1 through 12 and summarizes the final burning-cell counts and wind-bias
+values. For a uniform forest scenario without wind, the test evaluates the
+coefficient of variation and range of active burning cells. These are aggregate
+measures: they do not require identical maps for different seeds, but they do
+detect excessive instability in the simulated spread.
 
 ```python
 assert burning_summary["cv"] <= scenario.max_burning_cv
 assert burning_summary["range"] <= scenario.max_burning_range
 ```
 
-The same module also checks deterministic reproducibility by running each
-scenario twice with the same seed and comparing the final metrics exactly:
+The passing criteria define an admissible threshold of stochastic variation. In
+the forest no-wind scenario, the coefficient of variation must remain below the
+scenario-specific bound and the range of burning-cell counts must not exceed the
+accepted limit. This is not a claim that all stochastic runs are identical.
+Rather, it means that the model remains statistically controlled across seeds.
+The same module also contains reproducibility tests, where the same scenario is
+run twice with the same seed and the final metrics must match exactly. Thus the
+model is allowed to be stochastic across different seeds, but it must be
+deterministic and reproducible when the seed is fixed.
 
-```python
-assert first == second
-```
+### 4.5 Test Documentation and Generated Results
 
-Together, these checks separate stochastic variability from computational
-non-reproducibility. Different seeds may lead to different trajectories, but
-those trajectories must remain statistically comparable within the accepted
-thresholds. The same seed, however, must reproduce the same final metrics. This
-combination is essential for a simulation that is both realistic in its
-uncertainty and usable for scientific inspection, debugging, and continuous
-integration.
+The examples above are only a selected part of the complete evaluation suite.
+The documentation of all tests, including the tests discussed in this section
+and all remaining behavioral, parameter sensitivity, stability, and
+reproducibility tests, is stored in `tests/TESTING.txt`. That document provides
+a formal description of each test case: objective, input conditions, execution
+procedure, measured evidence, and acceptance criteria.
 
-### 4.5 Evaluation Summary
+The test results can be inspected through the same GitHub Actions workflow that
+generates this report. The workflow is stored in
+`.github/workflows/project-report.yml` and is available in GitHub Actions as
+[`Project Report`]({REPORT_WORKFLOW_URL}). During each run, the workflow
+executes pytest, generates structured reports, builds a custom HTML summary,
+creates the formal PDF report, and uploads the `fire-simulation-project-report`
+artifact. The artifact contains:
 
-The current evaluation strategy does not claim empirical prediction accuracy;
-such a claim would require independent observations of fire spread under known
-meteorological and fuel conditions. Instead, the evaluation establishes that the
-implemented model is internally consistent, sensitive to its declared
-parameters, stable under repeated stochastic runs, and exactly reproducible when
-the random seed is fixed. This is the appropriate level of validation for the
-available evidence. GitHub Actions stores the resulting evidence as
-downloadable artifacts, which makes the evaluation repeatable and auditable
-directly from the repository.
+- `fire-simulation-project-report.pdf`, the formal report generated from the
+  current repository state;
+- `fire-simulation-test-report.html`, a custom report with an outcome chart,
+  per-test durations, and captured diagnostic output;
+- `pytest-report.html`, the standard browsable pytest-html report;
+- `pytest-report.json`, structured pytest data used by the custom report
+  generator;
+- `pytest-junit.xml`, a JUnit-compatible report suitable for external tools;
+- `pytest-output.txt`, the complete console output, including printed model
+  metrics from individual tests.
+
+This means that the generated PDF and the complete test evidence are preserved
+together in one downloadable artifact. {outcome_sentence(total, counts)}
 
 ## 5. Conclusions
 """
