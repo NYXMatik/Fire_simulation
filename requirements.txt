@@ -4,3 +4,4 @@ pygame
 pytest
 pytest-html
 pytest-json-report
+reportlab

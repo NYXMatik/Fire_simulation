@@ -58,24 +58,38 @@ Mateusz Janowski
 
 ## 4. Evaluation of the Model
 
-The model is evaluated with an automated pytest suite stored in the repository
-under `tests/`. The suite is intentionally divided into three complementary
-groups: behavioral tests, parameter sensitivity tests, and stability and
-reproducibility tests. This structure makes the evaluation inspectable from
-both a software-engineering perspective and a modelling perspective. The tests
-do not only check whether the program runs; they verify whether important
-properties of the fire-spread model remain consistent under controlled
-conditions.
+The evaluation of the model was designed under an important methodological
+constraint: no independent empirical fire-spread data set is available for the
+analysed map, and therefore the simulation cannot be validated by direct
+point-by-point comparison with an observed historical fire event. In such a
+situation, the appropriate verification strategy is not to claim predictive
+accuracy in an absolute sense, but to examine whether the implemented model is
+internally coherent, reproducible under controlled assumptions, and consistent
+with the theoretical mechanisms it is intended to represent. The test suite
+therefore evaluates model behaviour through controlled scenarios, parameter
+sensitivity analysis, and stochastic stability checks.
 
-The full formal description of all test cases is available in
-`tests/TESTING.txt`. That document describes the objective, input conditions,
-execution procedure, measured evidence, and acceptance criteria for every test.
-The GitHub repository also generates machine-readable and human-readable test
-results through GitHub Actions. The main test workflow is stored in
-`.github/workflows/tests.yml` and is available in GitHub Actions as
-[`Tests`]({TEST_WORKFLOW_URL}). During each run, the workflow executes pytest,
-creates structured and visual reports, and uploads them as the
-`fire-simulation-test-report` artifact. The artifact contains:
+This distinction is essential. A cellular-automaton wildfire model is a
+mechanistic approximation: its credibility depends on whether local transition
+rules, terrain-dependent probabilities, wind effects, and intervention
+mechanisms produce responses that are theoretically plausible. Since the project
+does not include calibrated observational data, the tests are formulated as
+structural and behavioural validation. They verify that the model reacts in the
+correct direction when assumptions are changed, that important limiting cases
+are handled correctly, and that random variation remains bounded rather than
+dominating the simulated dynamics.
+
+The automated test suite is stored in the repository under `tests/` and is
+divided into three complementary groups: behavioral tests, parameter sensitivity
+tests, and stability and reproducibility tests. The full formal description of
+all test cases is available in `tests/TESTING.txt`. That document specifies the
+objective, input conditions, execution procedure, measured evidence, and
+acceptance criteria for every test. The GitHub repository also generates
+machine-readable and human-readable test results through GitHub Actions. The
+main test workflow is stored in `.github/workflows/tests.yml` and is available
+in GitHub Actions as [`Tests`]({TEST_WORKFLOW_URL}). During each run, the
+workflow executes pytest, creates structured and visual reports, and uploads
+them as the `fire-simulation-test-report` artifact. The artifact contains:
 
 - `fire-simulation-test-report.html`, a custom summary report with an outcome
   chart, per-test durations, and captured diagnostic output;
@@ -94,78 +108,110 @@ artifacts. {outcome_sentence(total, counts)}
 
 ### 4.1 Test Types
 
-Behavioral tests verify qualitative rules of the simulation. They answer
-questions such as whether terrain classes preserve the expected spread order,
-whether water blocks fire propagation, whether wind produces a directional
-bias, and whether controlled-burn cells behave as firebreaks after burnout.
-These tests are located in `tests/test_behavioral.py`.
+Behavioral tests verify qualitative properties that should hold independently
+of a particular calibration data set. They are used because the model contains
+explicit rules whose validity can be assessed directly: water should block fire
+propagation, completed controlled-burn areas should act as firebreaks, no-wind
+spread should be geometrically symmetric under deterministic ignition, and
+terrain classes should preserve the expected order of flammability. These tests
+are located in `tests/test_behavioral.py`.
 
-Parameter sensitivity tests change one model parameter at a time and verify
-that the simulation response changes in the expected direction. They are not
-intended to prove that a single numeric parameter value is universally correct.
-Instead, they check whether ignition probabilities, spread-speed multipliers,
-wind direction, and burnout timing are active and coherent within the
-implemented model. These tests are located in `tests/test_parameters.py`.
+Parameter sensitivity tests evaluate whether the model responds coherently to
+changes in its governing parameters. In the absence of empirical calibration,
+it is especially important to confirm that parameters are not merely declared
+in the code but actually control the resulting dynamics. For example, increasing
+an ignition probability should increase the final number of active burning
+cells, increasing a terrain spread-speed multiplier should make spread more
+extensive, and changing the wind vector should move the fire centre in the
+corresponding direction. These tests are located in `tests/test_parameters.py`.
 
-Stability and reproducibility tests evaluate the stochastic part of the model.
-The simulation is allowed to vary between different random seeds, but aggregate
-outcomes must remain within calibrated bounds. The same seed must also produce
-identical results. These tests are located in `tests/test_stability.py`.
+Stability and reproducibility tests evaluate the stochastic character of the
+simulation. Real fire spread is not deterministic: even under similar
+environmental conditions, local fuel continuity, turbulence, moisture
+heterogeneity, and small-scale ignition processes introduce variability. The
+implemented simulation reflects this uncertainty through probabilistic
+transition rules. Consequently, different random seeds are not expected to
+produce identical final states. Instead, the evaluation admits a defined
+threshold of similarity at the aggregate level, expressed through measures such
+as the coefficient of variation, standard deviation, and range of active burning
+cells. At the same time, when the same seed is supplied twice, the result must
+be exactly reproducible. These tests are located in `tests/test_stability.py`.
 
 ### 4.2 Behavioral Test Examples
 
-The converted-map terrain-order test checks whether the terrain coefficients
-used by the model lead to the expected qualitative hierarchy on a real converted
-map. Forest terrain should spread faster than green terrain, while building
-terrain should remain much less fire-prone. The test runs three seeded
+The converted-map terrain-order test verifies whether the terrain coefficients
+used by the model preserve the expected qualitative hierarchy on a real
+converted map. This is a behavioural validation test rather than a calibration
+test: it does not assert that the simulated number of burning cells is equal to
+an observed fire perimeter. Instead, it checks whether the model distinguishes
+between fuel classes in a theoretically defensible way. Forest terrain is
+expected to support faster spread than green terrain, whereas building terrain
+is expected to remain substantially less fire-prone. The test runs three seeded
 simulations for each selected terrain crop and compares average active fire
-counts rather than exact cell counts:
+counts through ratio-based acceptance criteria:
 
 ```python
 assert forest["mean_burning_cells"] > green["mean_burning_cells"] * 1.15
 assert buildings["mean_burning_cells"] < green["mean_burning_cells"] * 0.1
 ```
 
-This test is important because it connects the implementation to the modelling
-assumption that terrain-dependent ignition probabilities and spread speeds are
-meaningful on actual map data, not only on artificial grids.
+The ratio-based formulation is deliberate. Exact cell counts would be an
+inappropriate criterion without observational reference data and would make the
+test sensitive to incidental stochastic variation. A relative comparison,
+however, directly evaluates whether the implemented terrain probabilities and
+spread speeds preserve the intended ordering of fire susceptibility.
 
 The controlled-burn barrier test verifies the intended defensive intervention.
 A vertical line of completed controlled-burn cells is placed between an active
-fire and the downwind side of the grid. Ignition probability is set to one, and
-wind pushes the fire toward the barrier. Under these strict conditions, no
-active fire may appear beyond the completed line:
+fire source and the downwind side of the grid. Ignition probability is set to
+one, and wind pushes the fire toward the barrier. This creates a deliberately
+severe stress scenario: if any spread across the completed burnout line is
+observed, the firebreak mechanism is not functioning as specified. Under these
+conditions, no active fire may appear beyond the completed line:
 
 ```python
 assert not leaked_fire_points
 ```
 
-This is a strong behavioral check because the scenario is deliberately biased
-toward failure: if the fire can cross the barrier under guaranteed ignition and
-favorable wind, the controlled-burn mechanism is not working correctly.
+This test is necessary because controlled burnout is not only a visual feature
+of the application. It is a modelling assumption about intervention: once the
+line has completed its burnout state, it must remove available fuel and prevent
+subsequent propagation through that cell sequence.
 
 ### 4.3 Parameter Sensitivity Example
 
 One parameter test verifies that higher ignition probability increases spread.
-The test is parameterized for forest, green terrain, and buildings. For each
-terrain type, it runs several deterministic seeds for multiple probability
-values, computes mean active fire counts, and checks monotonic growth:
+This is an important sensitivity check because, in a model without external
+calibration data, the internal role of each parameter must be demonstrated
+explicitly. The test is parameterized for forest, green terrain, and buildings.
+For each terrain type, it runs several deterministic seeds for multiple
+probability values, computes mean active fire counts, and checks monotonic
+growth:
 
 ```python
 assert means == sorted(means)
 assert means[-1] > means[0] * 2
 ```
 
-This confirms that ignition probability is not a passive configuration value.
-When the probability is increased, the model produces a visibly larger fire,
-while still allowing stochastic variation between seeded runs.
+The test therefore verifies both directionality and practical magnitude. The
+monotonicity assertion checks that increasing the probability does not reduce
+spread, while the ratio condition requires the change to be large enough to be
+meaningful at the simulation scale. This is a common substitute for direct
+calibration when empirical target values are unavailable: the model is assessed
+by whether its response surface is qualitatively consistent with the governing
+assumptions.
 
 ### 4.4 Stability and Reproducibility Example
 
 The stability tests run representative scenarios across seeds 1 through 12.
-For example, a uniform forest scenario without wind is evaluated using the
+They acknowledge that a probabilistic fire model should not produce identical
+outputs for different seeds. Fire spread is inherently sensitive to local
+conditions and small ignition events; therefore, enforcing determinism across
+different seeds would be conceptually wrong. The purpose of stability testing is
+instead to determine whether the aggregate behaviour remains controlled. For
+example, a uniform forest scenario without wind is evaluated using the
 coefficient of variation and the range of active burning cells. The accepted
-bounds are calibrated for the implemented model:
+bounds are model-specific thresholds selected to identify excessive instability:
 
 ```python
 assert burning_summary["cv"] <= scenario.max_burning_cv
@@ -179,17 +225,23 @@ scenario twice with the same seed and comparing the final metrics exactly:
 assert first == second
 ```
 
-Together, these checks support two requirements at the same time. First, the
-model remains stochastic enough for interactive simulation. Second, scientific
-or debugging runs can be reproduced exactly when an explicit seed is supplied.
+Together, these checks separate stochastic variability from computational
+non-reproducibility. Different seeds may lead to different trajectories, but
+those trajectories must remain statistically comparable within the accepted
+thresholds. The same seed, however, must reproduce the same final metrics. This
+combination is essential for a simulation that is both realistic in its
+uncertainty and usable for scientific inspection, debugging, and continuous
+integration.
 
 ### 4.5 Evaluation Summary
 
-The current evaluation strategy covers local correctness, model behavior,
-parameter response, stochastic stability, and reproducibility. Behavioral tests
-protect the main simulation rules, parameter tests confirm that the model reacts
-coherently to controlled changes, and stability tests prevent random variation
-from becoming uncontrolled. GitHub Actions stores the resulting evidence as
+The current evaluation strategy does not claim empirical prediction accuracy;
+such a claim would require independent observations of fire spread under known
+meteorological and fuel conditions. Instead, the evaluation establishes that the
+implemented model is internally consistent, sensitive to its declared
+parameters, stable under repeated stochastic runs, and exactly reproducible when
+the random seed is fixed. This is the appropriate level of validation for the
+available evidence. GitHub Actions stores the resulting evidence as
 downloadable artifacts, which makes the evaluation repeatable and auditable
 directly from the repository.
 
@@ -198,7 +250,7 @@ directly from the repository.
 
 
 def plain_inline(text: str) -> str:
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1 (\2)", text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1", text)
     text = text.replace("`", "")
     return text
 
@@ -269,11 +321,180 @@ def text_width(text: str, size: int) -> float:
     return len(text) * size * 0.46
 
 
+def justified_word_spacing(line: str, target_width: float, size: int) -> float:
+    spaces = line.count(" ")
+    if spaces == 0:
+        return 0.0
+    extra = target_width - text_width(line, size)
+    if extra <= 0:
+        return 0.0
+    return min(extra / spaces, 2.0)
+
+
+def build_reportlab_pdf(markdown: str, output: Path) -> None:
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        HRFlowable,
+        PageBreak,
+        Paragraph,
+        Preformatted,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "ReportTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        leading=22,
+        alignment=TA_CENTER,
+        spaceAfter=14,
+    )
+    author_style = ParagraphStyle(
+        "ReportAuthor",
+        parent=styles["Normal"],
+        fontName="Times-Roman",
+        fontSize=13,
+        leading=18,
+        alignment=TA_CENTER,
+        spaceAfter=10,
+    )
+    date_style = ParagraphStyle(
+        "ReportDate",
+        parent=author_style,
+        fontSize=12,
+        spaceAfter=34,
+    )
+    section_style = ParagraphStyle(
+        "Section",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=14,
+        leading=18,
+        alignment=TA_LEFT,
+        spaceBefore=14,
+        spaceAfter=18,
+    )
+    subsection_style = ParagraphStyle(
+        "Subsection",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=11,
+        leading=14,
+        alignment=TA_LEFT,
+        spaceBefore=12,
+        spaceAfter=8,
+    )
+    body_style = ParagraphStyle(
+        "BodyJustified",
+        parent=styles["BodyText"],
+        fontName="Times-Roman",
+        fontSize=11,
+        leading=14,
+        alignment=TA_JUSTIFY,
+        firstLineIndent=0,
+        spaceAfter=8,
+    )
+    bullet_style = ParagraphStyle(
+        "BulletJustified",
+        parent=body_style,
+        leftIndent=12,
+        firstLineIndent=0,
+        bulletIndent=0,
+        spaceAfter=5,
+    )
+    code_style = ParagraphStyle(
+        "Code",
+        parent=styles["Code"],
+        fontName="Courier",
+        fontSize=8.8,
+        leading=11,
+        textColor=colors.HexColor("#002b36"),
+    )
+
+    story = []
+    blocks = markdown_blocks(markdown)
+    page_width, _page_height = A4
+    content_width = page_width - 2 * 28 * mm
+
+    for kind, text in blocks:
+        escaped = (
+            text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+        if kind == "h1":
+            story.append(Paragraph(escaped, title_style))
+        elif text == "Mateusz Janowski":
+            story.append(Paragraph(escaped, author_style))
+        elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+            story.append(Paragraph(escaped, date_style))
+        elif kind == "h2":
+            if text == "5. Conclusions":
+                story.append(Spacer(1, 8))
+                story.append(HRFlowable(width="48%", thickness=0.6, color=colors.black, spaceBefore=4, spaceAfter=18))
+            story.append(Paragraph(escaped, section_style))
+        elif kind == "h3":
+            story.append(Paragraph(escaped, subsection_style))
+        elif kind == "bullet":
+            story.append(Paragraph(escaped, bullet_style, bulletText="-"))
+        elif kind == "code":
+            code = Preformatted(text, code_style)
+            table = Table([[code]], colWidths=[content_width])
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f0f1f3")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("TOPPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ]
+                )
+            )
+            story.append(table)
+            story.append(Spacer(1, 8))
+        else:
+            story.append(Paragraph(escaped, body_style))
+
+    def add_page_number(canvas, doc) -> None:
+        canvas.saveState()
+        canvas.setFont("Times-Roman", 10)
+        canvas.drawCentredString(page_width / 2, 14 * mm, str(doc.page))
+        canvas.restoreState()
+
+    document = SimpleDocTemplate(
+        str(output),
+        pagesize=A4,
+        rightMargin=28 * mm,
+        leftMargin=28 * mm,
+        topMargin=35 * mm,
+        bottomMargin=25 * mm,
+    )
+    document.build(story, onFirstPage=add_page_number, onLaterPages=add_page_number)
+
+
 def build_pdf(markdown: str, output: Path) -> None:
+    try:
+        build_reportlab_pdf(markdown, output)
+        return
+    except ImportError:
+        pass
+
     width = 595
     height = 842
     margin = 82
     bottom = 82
+    content_width = width - 2 * margin
     y = height - 122
     pages: list[list[str]] = [[]]
 
@@ -282,15 +503,33 @@ def build_pdf(markdown: str, output: Path) -> None:
         pages.append([])
         y = height - 92
 
-    def add_text(x: float, y_pos: float, text: str, size: int, font: str) -> None:
-        pages[-1].append(f"BT /{font} {size} Tf {x:.2f} {y_pos:.2f} Td ({pdf_escape(text)}) Tj ET")
+    def add_text(x: float, y_pos: float, text: str, size: int, font: str, word_spacing: float = 0.0) -> None:
+        spacing = f" {word_spacing:.3f} Tw" if word_spacing else ""
+        pages[-1].append(
+            f"BT /{font} {size} Tf{spacing} {x:.2f} {y_pos:.2f} Td ({pdf_escape(text)}) Tj ET"
+        )
 
-    def add_line(text: str, size: int = 11, font: str = "F1", leading: int = 14) -> None:
+    def add_line(
+        text: str,
+        size: int = 11,
+        font: str = "F1",
+        leading: int = 14,
+        word_spacing: float = 0.0,
+    ) -> None:
         nonlocal y
         if y < bottom:
             new_page()
-        add_text(margin, y, text, size, font)
+        add_text(margin, y, text, size, font, word_spacing)
         y -= leading
+
+    def add_paragraph(text: str) -> None:
+        wrapped = textwrap.wrap(text, width=86)
+        for index, line in enumerate(wrapped):
+            spacing = 0.0
+            if index < len(wrapped) - 1 and len(line) > 68:
+                spacing = justified_word_spacing(line, content_width, 11)
+            add_line(line, size=11, leading=14, word_spacing=spacing)
+        add_space(7)
 
     def add_centered(text: str, size: int, font: str, leading: int) -> None:
         nonlocal y
@@ -343,7 +582,10 @@ def build_pdf(markdown: str, output: Path) -> None:
             wrapped = textwrap.wrap(text, width=82)
             for index, line in enumerate(wrapped):
                 prefix = "- " if index == 0 else "  "
-                add_line(prefix + line, size=10, leading=13)
+                spacing = 0.0
+                if index < len(wrapped) - 1 and len(line) > 68:
+                    spacing = justified_word_spacing(prefix + line, content_width, 10)
+                add_line(prefix + line, size=10, leading=13, word_spacing=spacing)
             add_space(3)
         elif kind == "code":
             wrapped_lines: list[str] = []
@@ -361,9 +603,7 @@ def build_pdf(markdown: str, output: Path) -> None:
             elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
                 add_centered(text, size=12, font="F1", leading=52)
             else:
-                for line in textwrap.wrap(text, width=86):
-                    add_line(line, size=11, leading=14)
-                add_space(7)
+                add_paragraph(text)
                 if text.startswith("Together, these checks"):
                     pending_rule = True
 
