@@ -109,19 +109,35 @@ The project is guided by the following scientific questions:
 ### 2.1 Cellular Automata
 
 Cellular automata are discrete spatial models in which the environment is
-divided into cells. Each cell has a state, and the state in the next simulation
-step depends on the cell itself and on neighbouring cells. This is a natural
-way to describe wildfire spread, because a fire front grows through many local
-interactions between burning cells, nearby fuel and environmental constraints
-rather than through one global movement rule [1][2].
+divided into cells. Each cell has an actual current state, such as vegetation,
+active fire, burned area or water. At the next step, the model does not choose
+the new state independently; it computes it from the cell's current state and
+from the current states of cells in its neighbourhood. In cellular automata, a
+neighbourhood means the set of nearby cells that can influence a given cell.
+In this project this idea is represented by the eight surrounding cells on the
+grid, so fire can spread from a burning cell to adjacent and diagonal cells.
 
-This approach is especially effective in this project because the converted map
-already has a grid-like structure. Forest, green terrain, buildings, water,
-burning cells and burned cells can all be represented directly as cell states,
-while ignition, burnout, water blocking, controlled burns and wind effects can
-be implemented as local transition rules. As a result, the model remains simple
-enough to inspect and test, but still expressive enough to reproduce the main
-spatial mechanisms discussed in cellular-automata wildfire models [1][2].
+Transition rules define how a cell changes from one state to another between
+two simulation steps. A rule can be deterministic, for example water remains
+water, or probabilistic, for example a vegetation cell may become burning when
+one of its neighbours is already burning and the spread probability is high
+enough [1][2]. The important point is that each rule is applied locally: the
+model checks a cell, checks its neighbourhood and then decides the cell's next
+state from this local information.
+
+This local-rule structure is powerful because complex global behaviour can
+emerge from many simple updates. A wildfire front, its shape, its asymmetry and
+its interaction with barriers do not need to be scripted as one large process;
+they emerge from repeated neighbourhood interactions between individual cells.
+This is the emergence property of cellular automata: simple transition rules,
+applied many times across a grid, can produce behaviour that looks much more
+complex than the individual rule itself. For that reason, cellular automata are
+useful for difficult spatial simulations such as fire spread: the rules stay
+understandable and computationally light, while the resulting pattern can still
+represent a dynamic and irregular phenomenon [1][2]. In this project, the
+converted map already has a grid-like structure, so forest, green terrain,
+buildings, water, burning cells and burned cells can all be represented
+directly as cell states.
 
 ### 2.2 Probabilities of Spread
 
@@ -133,13 +149,34 @@ application scale suitable for interactive map-based simulation. Forest is
 therefore treated as more fire-prone than open green terrain, while building
 areas are represented as much less flammable than vegetation.
 
-In the implementation, the raw literature-inspired values are scaled to the
-visual time step of the application. The source values used for this scaling
-are presented in Table 1. In the project, forest is mapped to the
-fire-prone-conifers row, green terrain is mapped to grassland, and buildings
-are treated as a low-spread built-up proxy rather than as fully non-burnable
-terrain. This keeps the simulation readable for a user while preserving the
-expected ordering of spread intensity from the literature [1].
+In the source work, PROPAGATOR models fire spread as a stochastic contamination
+process between a burning cell and the cells in its Moore neighbourhood, meaning
+the eight surrounding cells on a square grid. During each update, an active
+burning cell can attempt to ignite neighbouring cells, but the chance of a
+successful ignition is not constant. The nominal probability depends on both
+the vegetation type of the burning cell and the vegetation type of the
+neighbouring target cell. For this reason, the source does not provide one
+single flammability number per terrain class; it provides a matrix of possible
+burning-cell and neighbour-cell combinations. Reading the table therefore
+requires choosing the row of the currently burning source cell and the column
+of the neighbouring candidate cell. The resulting value is the base probability
+used before other model influences, such as wind, are applied.
+
+The same source also assigns a nominal fire-spread velocity to each vegetation
+class. This velocity describes how quickly fire is expected to propagate through
+that land-cover type under nominal conditions, and it supports the interpretation
+of the probability matrix: highly fire-prone classes tend to receive stronger
+spread behaviour than less fire-prone forest classes. The probability matrix
+and the corresponding nominal velocities are presented together in Table 1
+because the source uses them as linked parts of the same fire-propagation
+parameterisation.
+
+In the implementation, the raw literature-inspired values from Table 1 are
+scaled to the visual time step of the application. In the project, forest is
+mapped to the fire-prone-conifers row, green terrain is mapped to grassland,
+and buildings are treated as a low-spread built-up proxy rather than as fully
+non-burnable terrain. This keeps the simulation readable for a user while
+preserving the expected ordering of spread intensity from the literature [1].
 
 Table 1: Probabilities of fire spread and nominal fire spread velocity. Source: [1].
 
@@ -620,6 +657,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
     from reportlab.lib.units import mm
     from reportlab.platypus import (
         HRFlowable,
+        Flowable,
         KeepTogether,
         PageBreak,
         Paragraph,
@@ -729,6 +767,42 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
         fontSize=7.1,
         leading=8.6,
     )
+    source_table_top_style = ParagraphStyle(
+        "SourceTableTop",
+        parent=table_header_style,
+        fontSize=9.2,
+        leading=11,
+        alignment=TA_CENTER,
+    )
+    source_table_header_style = ParagraphStyle(
+        "SourceTableHeader",
+        parent=table_header_style,
+        fontSize=7.0,
+        leading=8.7,
+        alignment=TA_CENTER,
+        splitLongWords=0,
+    )
+    source_table_side_style = ParagraphStyle(
+        "SourceTableSide",
+        parent=table_header_style,
+        fontSize=8.4,
+        leading=10,
+        alignment=TA_CENTER,
+    )
+    source_table_label_style = ParagraphStyle(
+        "SourceTableLabel",
+        parent=table_cell_style,
+        fontSize=8.2,
+        leading=10,
+        alignment=TA_CENTER,
+    )
+    source_table_value_style = ParagraphStyle(
+        "SourceTableValue",
+        parent=table_cell_style,
+        fontSize=8.2,
+        leading=10,
+        alignment=TA_CENTER,
+    )
     wide_table_cell_style = ParagraphStyle(
         "WideTableCell",
         parent=table_cell_style,
@@ -744,6 +818,112 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
         alignment=TA_CENTER,
         spaceAfter=0,
     )
+
+    class SourceMatrixTable(Flowable):
+        def __init__(
+            self,
+            headers: list[str],
+            probability_rows: list[list[str]],
+            velocity_row: list[str],
+            width: float,
+        ) -> None:
+            super().__init__()
+            self.headers = headers
+            self.probability_rows = probability_rows
+            self.velocity_row = velocity_row
+            self.width = width
+            self.height = width * 0.435
+
+        def wrap(self, availWidth: float, availHeight: float) -> tuple[float, float]:
+            return self.width, self.height
+
+        def _center_lines(
+            self,
+            text: str,
+            x: float,
+            y: float,
+            font: str,
+            size: float,
+            leading: float,
+        ) -> None:
+            lines = text.split("<br/>")
+            start = y + leading * (len(lines) - 1) / 2 - size * 0.34
+            self.canv.setFont(font, size)
+            for index, line in enumerate(lines):
+                self.canv.drawCentredString(x, start - index * leading, line)
+
+        def draw(self) -> None:
+            canvas = self.canv
+            width = self.width
+            height = self.height
+            left = 0
+            right = width
+            split_x = width * 0.27
+            side_center_x = width * 0.083
+            row_label_x = width * 0.205
+            value_width = (right - split_x) / 6
+            value_centers = [split_x + value_width * (index + 0.5) for index in range(6)]
+
+            y_top = height
+            y_burning_bottom = height * (1 - 68 / 605)
+            y_header_bottom = height * (1 - 172 / 605)
+            y_velocity_top = height * (1 - 511 / 605)
+            y_bottom = 0
+
+            canvas.setStrokeColor(colors.black)
+            canvas.setLineWidth(0.9)
+            canvas.line(left, y_top, right, y_top)
+            canvas.setLineWidth(0.75)
+            canvas.line(split_x, y_burning_bottom, right, y_burning_bottom)
+            canvas.line(left, y_header_bottom, right, y_header_bottom)
+            canvas.line(left, y_velocity_top, right, y_velocity_top)
+            canvas.setLineWidth(0.9)
+            canvas.line(left, y_bottom, right, y_bottom)
+
+            self._center_lines(
+                "Burning Cell",
+                split_x + (right - split_x) / 2,
+                (y_top + y_burning_bottom) / 2,
+                "Helvetica-Bold",
+                8.7,
+                10,
+            )
+            for header, x in zip(self.headers, value_centers):
+                self._center_lines(
+                    header,
+                    x,
+                    (y_burning_bottom + y_header_bottom) / 2,
+                    "Helvetica-Bold",
+                    7.2,
+                    8.8,
+                )
+
+            row_area = y_header_bottom - y_velocity_top
+            row_step = row_area / 6
+            self._center_lines(
+                "Neighbor<br/>Cells",
+                side_center_x,
+                (y_header_bottom + y_velocity_top) / 2,
+                "Helvetica-Bold",
+                8.0,
+                9.2,
+            )
+            for index, row in enumerate(self.probability_rows):
+                y = y_header_bottom - row_step * (index + 0.5)
+                self._center_lines(row[0], row_label_x, y, "Helvetica", 7.7, 9.3)
+                for value, x in zip(row[1:], value_centers):
+                    self._center_lines(value, x, y, "Helvetica", 7.7, 9.3)
+
+            self._center_lines(
+                "Nominal Fire<br/>Spread Velocity [m/min]",
+                width * 0.16,
+                (y_velocity_top + y_bottom) / 2,
+                "Helvetica-Bold",
+                8.4,
+                10.2,
+            )
+            for value, x in zip(self.velocity_row[1:], value_centers):
+                self._center_lines(value, x, (y_velocity_top + y_bottom) / 2, "Helvetica", 7.9, 9.5)
 
     story = []
     blocks = markdown_blocks(markdown)
@@ -798,6 +978,33 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             story.append(Spacer(1, 8))
         elif kind == "table":
             parsed_rows = parse_markdown_table(text)
+            if pending_table_caption and pending_table_caption.startswith("Table 1:"):
+                headers = [
+                    header.replace("Fire-Prone Conifers", "Fire-Prone<br/>Conifers")
+                    .replace("Agro-Forestry Areas", "Agro-<br/>Forestry<br/>Areas")
+                    .replace("Not Fire-Prone Forest", "Not<br/>Fire-Prone<br/>Forest")
+                    for header in parsed_rows[0][1:]
+                ]
+                probability_rows = [
+                    [
+                        row[0].replace("Fire-Prone Conifers", "Fire-prone conifers")
+                        .replace("Agro-Forestry Areas", "Agro-forestry areas")
+                        .replace("Not Fire-Prone Forest", "Not fire-prone forest")
+                    ]
+                    + row[1:]
+                    for row in parsed_rows[1:-1]
+                ]
+                velocity_row = parsed_rows[-1]
+                table_block = [
+                    Paragraph(pending_table_caption, table_caption_style),
+                    Spacer(1, 6),
+                    SourceMatrixTable(headers, probability_rows, velocity_row, content_width),
+                    Spacer(1, 10),
+                ]
+                pending_table_caption = None
+                story.append(KeepTogether(table_block))
+                continue
+
             column_count = max(len(row) for row in parsed_rows)
             is_wide_table = column_count > 2
             if is_wide_table:
