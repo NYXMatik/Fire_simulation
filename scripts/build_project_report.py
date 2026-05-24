@@ -275,6 +275,73 @@ together in one downloadable artifact.
 {outcome_sentence(total, counts)}
 
 ## 5. Conclusions
+
+### 5.1 General Conclusions
+
+The project demonstrates that a real map image can be transformed into a simple
+but expressive fire-spread simulation environment. The resulting model does not
+attempt to reproduce all physical processes involved in wildfire dynamics.
+Instead, it deliberately focuses on a transparent cellular-automaton structure
+in which terrain type, ignition location, wind direction, water barriers and
+controlled burnout can be modified and observed directly. This makes the
+application useful as an exploratory tool: it allows complex spatial behaviour
+to emerge from a limited set of understandable local rules.
+
+The most important outcome is the balance between flexibility and simplicity.
+The simulation can be applied to arbitrary areas extracted from Google Earth,
+which gives it practical spatial relevance, while the interface remains simple
+enough for rapid experimentation. The model therefore supports a form of
+interactive reasoning: the user can change conditions, observe the resulting
+fire pattern and compare scenarios without needing a large operational wildfire
+forecasting system.
+
+### 5.2 Answers to the Scientific Questions
+
+The model answers the first scientific question by showing that a real map image
+can be converted into a computational grid suitable for cellular-automaton fire
+spread. Visible land-cover classes are translated into terrain states, and these
+states become the basis for local transition rules. In this way, the simulation
+connects an ordinary geographic image with a dynamic model that can be executed,
+modified and tested.
+
+The second question is addressed through terrain-dependent ignition
+probabilities and spread speeds. Forest, green terrain and buildings do not
+behave as identical cells; each terrain class influences the probability and
+rate of propagation. This allows the simulation to express an important spatial
+intuition: fire does not spread through a map uniformly, but reacts to the
+structure of the environment.
+
+The third question is addressed by wind and barrier mechanisms. Wind modifies
+the direction of spread and shifts the active fire centre, while water barriers
+and completed controlled-burn lines can interrupt propagation. These mechanisms
+make it possible to study not only how fire expands, but also how it can be
+redirected, slowed or stopped under simplified intervention scenarios.
+
+The fourth question is addressed by allowing the ignition point to be selected
+interactively. Changing the initial fire location changes the terrain context
+encountered by the fire front, and therefore changes the final burned area and
+the overall geometry of the spread pattern. The model consequently shows that
+initial conditions are not a minor technical detail, but a central component of
+spatial fire behaviour.
+
+### 5.3 Future Directions
+
+Future development should focus on increasing realism while preserving the
+clarity that makes the current model useful. One natural extension would be to
+improve map conversion by using more advanced image classification methods, so
+that terrain classes can be detected more reliably from different Google Earth
+exports. Another direction would be to introduce additional environmental
+variables, such as slope, vegetation moisture or wind strength, which would make
+the simulation more sensitive to real landscape conditions.
+
+The model could also be extended with richer evaluation data. If historical fire
+perimeters or controlled reference scenarios became available, the current
+structural tests could be complemented with empirical validation. This would
+make it possible to compare simulated spread patterns with observed outcomes,
+calibrate parameters more precisely and assess predictive accuracy. The current
+implementation provides a stable foundation for that development: it is simple,
+inspectable and already equipped with automated tests and reproducible reporting
+through GitHub Actions.
 """
 
 
