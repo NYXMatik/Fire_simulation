@@ -672,6 +672,7 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
             alt_text = image_match.group(1).strip()
             image_path = image_match.group(2).strip()
             blocks.append(("image", f"{alt_text}|{image_path}"))
+            continue
 
         if line.startswith("|") and line.endswith("|"):
             flush_paragraph()
@@ -1227,6 +1228,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
     content_width = page_width - 2 * 28 * mm
     pending_table_caption = None
     seen_section = False
+    figure_counter = 0
 
     for kind, text in blocks:
         escaped = reportlab_inline(text)
@@ -1357,6 +1359,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             story.append(KeepTogether(table_block))
 
         elif kind == "image":
+            figure_counter += 1
             caption, img_path = text.split("|", 1)
             resolved_img_path = (BASE_DIR / img_path).resolve()
 
@@ -1365,14 +1368,9 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             img._restrictSize(available_width, 260)
             story.append(img)
 
-            if caption:
-                story.append(Paragraph(caption, table_caption_style))
+            full_caption = f"Figure {figure_counter}. {caption}" if caption else f"Figure {figure_counter}."
+            story.append(Paragraph(full_caption, table_caption_style))
             story.append(Spacer(1, 10))
-        else:
-            if text.startswith("Table "):
-                pending_table_caption = escaped
-            else:
-                story.append(Paragraph(escaped, body_style))
 
     def add_page_number(canvas, doc) -> None:
         canvas.saveState()
