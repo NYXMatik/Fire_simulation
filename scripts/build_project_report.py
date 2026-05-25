@@ -7,6 +7,8 @@ import textwrap
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+from reportlab.platypus import Image
+from reportlab.lib.utils import ImageReader
 
 
 REPOSITORY_URL = "https://github.com/NYXMatik/Fire_simulation"
@@ -18,6 +20,7 @@ PARAMETER_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_parameters.py"
 STABILITY_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_stability.py"
 PROPAGATOR_URL = "https://doi.org/10.3390/fire3030026"
 ALEXANDRIDIS_URL = "https://doi.org/10.1016/j.amc.2008.06.046"
+BASE_DIR = Path(__file__).resolve().parent
 
 
 def read_json(path: Path | None) -> dict:
