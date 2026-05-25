@@ -671,7 +671,7 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
             flush_paragraph()
             alt_text = image_match.group(1).strip()
             image_path = image_match.group(2).strip()
-            blocks.append(("image", f"{alt_text}|{image_path}")
+            blocks.append(("image", f"{alt_text}|{image_path}"))
 
         if line.startswith("|") and line.endswith("|"):
             flush_paragraph()
