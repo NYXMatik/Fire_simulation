@@ -1342,6 +1342,19 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             table_block.append(table)
             table_block.append(Spacer(1, 10))
             story.append(KeepTogether(table_block))
+
+        elif kind == "image":
+            caption, img_path = text.split("|", 1)
+            resolved_img_path = (BASE_DIR / img_path).resolve()
+
+            img = Image(str(resolved_img_path))
+            available_width = A4[0] - (28 * mm) - (28 * mm)
+            img._restrictSize(available_width, 260)
+            story.append(img)
+
+            if caption:
+                story.append(Paragraph(caption, table_caption_style))
+            story.append(Spacer(1, 10))
         else:
             if text.startswith("Table "):
                 pending_table_caption = escaped
