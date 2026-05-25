@@ -1234,12 +1234,12 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
         escaped = reportlab_inline(text)
         if kind == "h1":
             story.append(Paragraph(escaped, title_style))
+        elif text == "Mateusz Janowski, Szymon Majdak":
+            story.append(Paragraph(escaped, author_style))
         elif kind == "p":
             if re.match(r'!\[(.*?)\]\((.*?)\)', text.strip()):
                 continue
             story.append(Paragraph(reportlab_inline(text), body_style))
-        elif text == "Mateusz Janowski, Szymon Majdak":
-            story.append(Paragraph(escaped, author_style))
         elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
             story.append(Paragraph(escaped, date_style))
         elif kind == "h2":
