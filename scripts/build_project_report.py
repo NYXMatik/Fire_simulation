@@ -276,6 +276,10 @@ under favourable wind alignment.
 
 ## 3. Simulation
 
+Application start screen.
+
+![Application start screen](images/application_start.png)
+
 ## 4. Evaluation of the Model
 
 ### 4.1 Testing Strategy and Types of Testing
@@ -659,6 +663,15 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
             flush_bullet()
             flush_paragraph()
             continue
+
+        image_match = re.match(r'!\[(.*?)\]\((.*?)\)', line)
+        if image_match:
+            flush_table()
+            flush_bullet()
+            flush_paragraph()
+            alt_text = image_match.group(1).strip()
+            image_path = image_match.group(2).strip()
+            blocks.append(("image", f"{alt_text}|{image_path}")
 
         if line.startswith("|") and line.endswith("|"):
             flush_paragraph()
