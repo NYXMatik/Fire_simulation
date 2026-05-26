@@ -15,8 +15,8 @@ REPOSITORY_URL = "https://github.com/NYXMatik/Fire_simulation"
 REPORT_WORKFLOW_URL = f"{REPOSITORY_URL}/actions/workflows/project-report.yml"
 REPORT_WORKFLOW_FILE_URL = f"{REPOSITORY_URL}/blob/main/.github/workflows/project-report.yml"
 TEST_DOCUMENTATION_URL = f"{REPOSITORY_URL}/blob/main/tests/TESTING.txt"
-APP_URL = f"{REPOSITORY_URL}/blob/main/app.py"
-CONVERTER_URL = f"{REPOSITORY_URL}/blob/main/converter.py"
+APP_URL = f"{REPOSITORY_URL}/blob/main/fire_simulation/app.py"
+CONVERTER_URL = f"{REPOSITORY_URL}/blob/main/fire_simulation/converter.py"
 BEHAVIORAL_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_behavioral.py"
 PARAMETER_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_parameters.py"
 STABILITY_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_stability.py"
@@ -203,12 +203,19 @@ Equation: IGNITION_PROBABILITY
 This equation uses c as the terrain class of the neighbouring candidate cell.
 P_ignite(c) is the probability that this cell ignites during one simulation
 update, p_raw(c) is the raw probability selected from the literature-inspired
-values in Table 1, and s is the application scaling factor. The scaling factor
-is chosen from the green-terrain reference case, so s = 0.09 / 0.475 = 0.1895.
-This means that grassland keeps a readable application probability of about
-0.09, while the other terrain classes are scaled by the same factor. Water and
-burned cells are assigned 0 because they do not provide available fuel for
-further propagation.
+values in Table 1, and s is the application scaling factor. The raw grassland
+probability 0.475 comes directly from the grassland-to-grassland entry in
+Table 1 and is used as the green-terrain reference case. The target application
+probability 0.09 is an implementation-level calibration value: it keeps the
+interactive simulation visibly progressive at the selected update rate without
+making the fire front cover the map almost immediately. The scaling factor is
+therefore computed by dividing the target application probability by the raw
+literature probability for that same reference class, so
+s = 0.09 / 0.475 = 0.1895. The value 0.1895 is not an additional literature
+parameter; it is the conversion factor used to preserve the relative ordering
+from Table 1 while adapting the probabilities to the visual time scale of this
+application. Water and burned cells are assigned 0 because they do not provide
+available fuel for further propagation.
 
 The resulting project parameters calculated from Equation (1) are summarized
 in Table 2.
@@ -278,71 +285,135 @@ under favourable wind alignment.
 
 ## 3. Simulation
 
-### 3.1 Preparing the simulation area
+### 3.1 Environment and Installation
 
-This project let's you choose any part of the Google Maps, to be the simulation area.
-First we need to get the screenshot of chosen area. To do that we recommend Google Earth,
-because it let's you disable the labels to have a clear map. When you are on the Google Earth,
-choose map instead of satellite, and choose clean style, then you can save a screenshot of chosen
-part of the map as png or jpg file and put that file in maps folder.
+The project was developed and tested on Windows. It should also work on Linux
+and macOS, because the implementation uses cross-platform Python libraries, but
+the interactive application depends on Pygame window support and therefore
+requires a working graphical desktop environment.
+
+The required runtime is Python 3 with pip. A virtual environment is recommended
+so that the simulation and testing dependencies do not interfere with other
+Python projects:
+
+```python
+python -m venv .venv
+.venv\\Scripts\\activate
+python -m pip install -r requirements.txt
+```
+
+On Linux and macOS, the activation command is usually:
+
+```python
+source .venv/bin/activate
+```
+
+The requirements file installs the libraries needed by the converter, the
+interactive application, report generation, and automated tests. NumPy and
+Pillow are used for image conversion and grid loading, Pygame is used by the
+interactive application, ReportLab is used to generate the PDF report, and
+pytest with pytest-html and pytest-json-report is used for the automated test
+reports.
+
+After installation, the main checks can be run with:
+
+```python
+python -m pytest
+```
+
+The GitHub Actions report workflow runs the same pytest suite, saves the
+standard pytest outputs, builds the custom HTML test report, and regenerates
+the formal PDF report.
+
+### 3.2 Preparing the simulation area
+
+The user can choose any part of Google Maps as the simulation area. The first
+step is to save a screenshot of the selected area. Google Earth is recommended
+for this step because it allows labels to be disabled and a clean map style to
+be selected. In Google Earth, choose the map view instead of satellite view,
+select the clean style, save the chosen area as a PNG or JPG file, and place
+that file in the `maps` folder.
 
 ![Clean map style selected in Google Earth](images/clean_map.png)
 
-Next we need to specify, that we want to convert this newly downloaded image. To do that
-we need to go to [`converter.py`]({CONVERTER_URL}) file and fain *main* function. In it, you can specify, where is
-and how the map file is named and where to put and how to name the converted map of the area.
-
-To run the converter, run it through your selected program or make sure you are in the folder with this file and run below command:
+After the screenshot is saved, the converter must be configured to read the new
+source image. This is done in [`converter.py`]({CONVERTER_URL}), inside the
+*main* function. The line that should be edited is the input-path assignment:
 
 ```python
-python converter.py
+converted_image = convert_image('maps/map2.JPG')
+```
+
+To convert a different screenshot, replace `maps/map2.JPG` in that line with
+the path to the saved map image. The following line controls the output file
+name:
+
+```python
+converted_image.save(f"maps/map2_converted.png")
+```
+
+It can be changed when a different converted-map filename is needed.
+
+To run the converter from the project root, use:
+
+```python
+python -m fire_simulation.converter
 ```
 
 Once the file is processed and converted image is generated, we can proceed to application.
 
-### 3.2 Application and it's functionalities
+### 3.3 Application and its functionality
 
-The application is located in [`app.py`]({APP_URL}). To run the converter, run it through your selected program or make sure you are in the folder with this file and run below command:
+The application is located in [`app.py`]({APP_URL}). To run the application
+from the project root, use:
 
 ```python
-python app.py
+python -m fire_simulation.app
 ```
 
 ![Application start screen](images/application_start.png)
 
 Figure 2 presents the application with selected and converted map area and an information panel
 on the right. The main part of the screen is the map, where different terrain types
-are displayed in distinct colors as is indicated on the Legend:
+are displayed in distinct colors as is indicated in Table 3.
 
-- grasslands - light green
-- forest - dark green
-- urban area - white
-- water - blue
-- fire - red
-- burned - dark red
-- controlled fire - orange
-- burned firebreak - grey
+Table 3: Terrain and state legend used in the application.
+
+| Terrain or state | Color | Meaning |
+| --- | --- | --- |
+| Grasslands | #90EE90 | Green terrain that can burn with the grassland parameters. |
+| Forest | #006400 | Forest terrain using the stronger forest spread-speed setting. |
+| Urban area | #FFFFFF | Built-up or low-fuel terrain. |
+| Water | #0000FF | Water barrier that blocks fire spread. |
+| Fire | #FF0000 | Active regular fire. |
+| Burned | #8B0000 | Burned cell that no longer provides fuel. |
+| Controlled fire | #FFA500 | Controlled burn that does not spread by itself. |
+| Burned firebreak | #808080 | Burned controlled-fire cell acting as a firebreak. |
 
 By default the simulation is stopped, no wind is applied, right mouse button action
 adds water barrier and simulation FPS (Frames Per Second) is set at 60 for stopped
 simulation and 10 for running simulation.
 
 There are many options, that can be activated when the simulation is stopped or when
-the simulation is running, which are listed below:
+the simulation is running, which are summarized in Table 4.
 
-- *Left Mouse Button* - adds active fire at selected cell
-- *C* - switches right mouse button action between adding water barrier and adding controlled fire
-- *Right Mouse Button* - adds active fire or water barrier at selected cell
-- *SPACE* - runs/stops the simulation
-- *R* - resets the map
-- *W* - set the wind to north
-- *A* - set the wind to south
-- *S* - set the wind to east
-- *D* - set the wind to west
-- *X* - disable the wind
-- *Up Arrow* - increase FPS
-- *Down Arrow* - decrease FPS
-- *ESCAPE* - quit application
+Table 4: Keyboard and mouse controls used by the application.
+
+| Input | Action |
+| --- | --- |
+| Left Mouse Button | Adds active fire at the selected cell. |
+| C | Switches the right mouse button action between adding a water barrier and adding controlled fire. |
+| Right Mouse Button | Adds the currently selected right-button action at the selected cell. |
+| SPACE | Starts or pauses the simulation. |
+| R | Resets the map. |
+| W | Sets the wind to north. |
+| A | Sets the wind to south. |
+| S | Sets the wind to east. |
+| D | Sets the wind to west. |
+| X | Disables the wind. |
+| Up Arrow | Increases FPS. |
+| Down Arrow | Decreases FPS. |
+| ESCAPE | Quits the application. |
 
 Running the simulation with active fire cells will spread the fire accordingly to the
 terrain, that the fire takes place. After given cell is on fire long enough, it becomes burned.
@@ -512,9 +583,9 @@ generates this report. The workflow is stored in
 Actions as [`Project Report`]({REPORT_WORKFLOW_URL}). During each run, the workflow
 executes pytest, generates structured reports, builds a custom HTML summary,
 creates the formal PDF report, and uploads the `fire-simulation-project-report`
-artifact. The files included in the artifact are presented in Table 3.
+artifact. The files included in the artifact are presented in Table 5.
 
-Table 3: Files generated by the Project Report workflow.
+Table 5: Files generated by the Project Report workflow.
 
 | File | Purpose |
 | --- | --- |
@@ -1397,20 +1468,31 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             else:
                 column_widths = [content_width * 0.42, content_width * 0.58]
             table_data = []
+            color_columns = {
+                index
+                for index, header in enumerate(parsed_rows[0])
+                if header.strip().lower() in {"color", "colour"}
+            }
+            swatch_commands = []
             for row_index, row in enumerate(parsed_rows):
                 if is_wide_table:
                     style = wide_table_header_style if row_index == 0 else wide_table_cell_style
                 else:
                     style = table_header_style if row_index == 0 else table_cell_style
-                table_data.append(
-                    [
-                        Paragraph(
-                            reportlab_inline(cell),
-                            style,
+                table_row = []
+                for column_index, cell in enumerate(row):
+                    if (
+                        row_index > 0
+                        and column_index in color_columns
+                        and re.fullmatch(r"#[0-9A-Fa-f]{6}", cell.strip())
+                    ):
+                        table_row.append(Paragraph(" ", style))
+                        swatch_commands.append(
+                            ("BACKGROUND", (column_index, row_index), (column_index, row_index), colors.HexColor(cell))
                         )
-                        for cell in row
-                    ]
-                )
+                    else:
+                        table_row.append(Paragraph(reportlab_inline(cell), style))
+                table_data.append(table_row)
             table = Table(table_data, colWidths=column_widths, repeatRows=1)
             table.setStyle(
                 TableStyle(
@@ -1423,6 +1505,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
                         ("TOPPADDING", (0, 0), (-1, -1), 4 if is_wide_table else 5),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 4 if is_wide_table else 5),
                     ]
+                    + swatch_commands
                 )
             )
             table_block = []
