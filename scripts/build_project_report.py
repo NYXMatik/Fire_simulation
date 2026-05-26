@@ -17,6 +17,7 @@ REPORT_WORKFLOW_FILE_URL = f"{REPOSITORY_URL}/blob/main/.github/workflows/projec
 TEST_DOCUMENTATION_URL = f"{REPOSITORY_URL}/blob/main/tests/TESTING.txt"
 APP_URL = f"{REPOSITORY_URL}/blob/main/fire_simulation/app.py"
 CONVERTER_URL = f"{REPOSITORY_URL}/blob/main/fire_simulation/converter.py"
+REQUIREMENTS_URL = f"{REPOSITORY_URL}/blob/main/requirements.txt"
 BEHAVIORAL_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_behavioral.py"
 PARAMETER_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_parameters.py"
 STABILITY_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_stability.py"
@@ -308,12 +309,12 @@ On Linux and macOS, the activation command is usually:
 source .venv/bin/activate
 ```
 
-The requirements file installs the libraries needed by the converter, the
-interactive application, report generation, and automated tests. NumPy and
-Pillow are used for image conversion and grid loading, Pygame is used by the
-interactive application, ReportLab is used to generate the PDF report, and
-pytest with pytest-html and pytest-json-report is used for the automated test
-reports.
+The [`requirements.txt`]({REQUIREMENTS_URL}) file installs the libraries needed
+by the converter, the interactive application, report generation, and automated
+tests. NumPy and Pillow are used for image conversion and grid loading, Pygame
+is used by the interactive application, ReportLab is used to generate the PDF
+report, and pytest with pytest-html and pytest-json-report is used for the
+automated test reports.
 
 After installation, the main checks can be run with:
 
@@ -323,7 +324,8 @@ python -m pytest
 
 The GitHub Actions report workflow runs the same pytest suite, saves the
 standard pytest outputs, builds the custom HTML test report, and regenerates
-the formal PDF report.
+the formal PDF report. The testing strategy, test categories, and generated
+test evidence are described in detail in Section 4.
 
 ### 3.2 Preparing the simulation area
 
@@ -383,16 +385,19 @@ Table 3: Terrain and state legend used in the application.
 | --- | --- | --- |
 | Grasslands | #90EE90 | Green terrain that can burn with the grassland parameters. |
 | Forest | #006400 | Forest terrain using the stronger forest spread-speed setting. |
-| Urban area | #FFFFFF | Built-up or low-fuel terrain. |
-| Water | #0000FF | Water barrier that blocks fire spread. |
+| Urban area | #E6E6E6 | Built-up or low-fuel terrain. |
+| Water | #8FDEED | Water barrier that blocks fire spread. |
 | Fire | #FF0000 | Active regular fire. |
 | Burned | #8B0000 | Burned cell that no longer provides fuel. |
 | Controlled fire | #FFA500 | Controlled burn that does not spread by itself. |
 | Burned firebreak | #808080 | Burned controlled-fire cell acting as a firebreak. |
 
-By default the simulation is stopped, no wind is applied, right mouse button action
-adds water barrier and simulation FPS (Frames Per Second) is set at 60 for stopped
-simulation and 10 for running simulation.
+When the application starts, the converted map is loaded and displayed, but the
+simulation is paused. No wind is active at startup, and the right mouse button
+is initially configured to add water barriers. The user starts or pauses the
+simulation with SPACE. While paused, the application runs at 60 FPS so that
+editing the scenario feels responsive; during active simulation it runs at
+10 FPS so that the fire spread remains easy to observe.
 
 There are many options, that can be activated when the simulation is stopped or when
 the simulation is running, which are summarized in Table 4.
@@ -415,12 +420,15 @@ Table 4: Keyboard and mouse controls used by the application.
 | Down Arrow | Decreases FPS. |
 | ESCAPE | Quits the application. |
 
-Running the simulation with active fire cells will spread the fire accordingly to the
-terrain, that the fire takes place. After given cell is on fire long enough, it becomes burned.
-Adding wind changes the fire spread direction towards the chosen wind direction. Adding
-water barrier simply adds water in chosen cells. Adding controlled burn will add fire, that doesn't spread.
-After some time it will also burn out. However, if normal fire reaches the controlled fire,
-before it burns out, it will take over the controlled fire, making it no longer controlled.
+Running the simulation with active fire cells spreads fire according to the
+terrain on which the fire is burning. After a cell has burned for long enough,
+it becomes burned and can no longer provide fuel. Adding wind changes the fire
+spread direction toward the selected wind direction. Adding water turns the
+selected cells into water barriers, which completely block further fire spread
+through those cells. Adding a controlled burn creates fire that does not spread
+by itself and is intended to act as an artificial firebreak after it burns out.
+However, if normal fire reaches the controlled burn before it burns out, the
+regular fire takes over that cell and it is no longer controlled.
 
 At the bottom right corner we also have a counter for active fire, burned, controlled burn and
 burned firebreak cells.
