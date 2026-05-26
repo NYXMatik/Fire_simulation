@@ -276,9 +276,53 @@ under favourable wind alignment.
 
 ## 3. Simulation
 
-Application start screen.
+### 3.2 Application and it's functionalities
 
 ![Application start screen](images/application_start.png)
+
+Figure 1 presents the application with selected and converted map area and an information panel
+on the right. The main part of the screen is the map, where different terrain types
+are displayed in distinct colors as is indicated on the Legend:
+
+- grasslands - light green
+- forest - dark green
+- urban area - white
+- water - blue
+- fire - red
+- burned - dark red
+- controlled fire - orange
+- burned firebreak - grey
+
+By default the simulation is stopped, no wind is applied, right mouse button action
+adds water barrier and simulation FPS (Frames Per Second) is set at 60 for stopped
+simulation and 10 for running simulation.
+
+There are many options, that can be activated when the simulation is stopped or when
+the simulation is running, which are listed below:
+
+- Left Mouse Button - adds active fire at selected cell
+- C - switches right mouse button action between adding water barrier and adding controlled fire
+- Right Mouse Button - adds active fire or water barrier at selected cell
+- SPACE - runs/stops the simulation
+- R - resets the map
+- W - set the wind to north
+- A - set the wind to south
+- S - set the wind to east
+- D - set the wind to west
+- X - disable the wind
+- Up Arrow - increase FPS
+- Down Arrow - decrease FPS
+- ESCAPE - quit application
+
+Running the simulation with active fire cells will spread the fire accordingly to the
+terrain, that the fire takes place. After given cell is on fire long enough, it becomes burned.
+Adding wind changes the fire spread direction towards the chosen wind direction. Adding
+water barrier simply adds water in chosen cells. Adding controlled burn will add fire, that doesn't spread.
+After some time it will also burn out. However, if normal fire reaches the controlled fire,
+before it burns out, it will take over the controlled fire, making it no longer controlled.
+
+At the bottom right corner we also have a counter for active fire, burned, controlled burn and
+burned firebreak cells.
 
 ## 4. Evaluation of the Model
 
