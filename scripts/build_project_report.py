@@ -423,12 +423,19 @@ Table 4: Keyboard and mouse controls used by the application.
 Running the simulation with active fire cells spreads fire according to the
 terrain on which the fire is burning. After a cell has burned for long enough,
 it becomes burned and can no longer provide fuel. Adding wind changes the fire
-spread direction toward the selected wind direction. Adding water turns the
-selected cells into water barriers, which completely block further fire spread
-through those cells. Adding a controlled burn creates fire that does not spread
-by itself and is intended to act as an artificial firebreak after it burns out.
-However, if normal fire reaches the controlled burn before it burns out, the
-regular fire takes over that cell and it is no longer controlled.
+spread direction toward the selected wind direction.
+
+Adding water turns the selected cells into water barriers. These cells
+completely block further fire spread, so the fire cannot pass through them even
+when neighbouring cells are actively burning. This makes water useful for
+testing hard barriers and artificial containment lines.
+
+Adding a controlled burn creates fire that does not spread by itself and is
+intended to act as an artificial firebreak after it burns out. The controlled
+burn is therefore useful for simulating preventive burning or manually prepared
+containment strips. However, if normal fire reaches the controlled burn before
+it burns out, the regular fire takes over that cell and it is no longer
+controlled.
 
 At the bottom right corner we also have a counter for active fire, burned, controlled burn and
 burned firebreak cells.
@@ -1475,6 +1482,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
                 column_widths = [first_column_width] + [other_column_width] * (column_count - 1)
             else:
                 column_widths = [content_width * 0.42, content_width * 0.58]
+            is_controls_table = pending_table_caption_text and pending_table_caption_text.startswith("Table 4:")
             table_data = []
             color_columns = {
                 index
@@ -1502,21 +1510,24 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
                         table_row.append(Paragraph(reportlab_inline(cell), style))
                 table_data.append(table_row)
             table = Table(table_data, colWidths=column_widths, repeatRows=1)
+            table_padding = 3 if is_controls_table or is_wide_table else 5
+            table_vertical_padding = 3 if is_controls_table else 4 if is_wide_table else 5
             table.setStyle(
                 TableStyle(
                     [
                         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eeeeee")),
                         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#8a8a8a")),
                         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 3 if is_wide_table else 5),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 3 if is_wide_table else 5),
-                        ("TOPPADDING", (0, 0), (-1, -1), 4 if is_wide_table else 5),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4 if is_wide_table else 5),
+                        ("LEFTPADDING", (0, 0), (-1, -1), table_padding),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), table_padding),
+                        ("TOPPADDING", (0, 0), (-1, -1), table_vertical_padding),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), table_vertical_padding),
                     ]
                     + swatch_commands
                 )
             )
             table_block = []
+            current_table_caption_text = pending_table_caption_text
             if pending_table_caption is not None:
                 table_block.append(Paragraph(pending_table_caption, table_caption_style))
                 table_block.append(Spacer(1, 6))
