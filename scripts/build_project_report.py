@@ -15,6 +15,8 @@ REPOSITORY_URL = "https://github.com/NYXMatik/Fire_simulation"
 REPORT_WORKFLOW_URL = f"{REPOSITORY_URL}/actions/workflows/project-report.yml"
 REPORT_WORKFLOW_FILE_URL = f"{REPOSITORY_URL}/blob/main/.github/workflows/project-report.yml"
 TEST_DOCUMENTATION_URL = f"{REPOSITORY_URL}/blob/main/tests/TESTING.txt"
+APP_URL = f"{REPOSITORY_URL}/blob/main/app.py"
+CONVERTER_URL = f"{REPOSITORY_URL}/blob/main/converter.py"
 BEHAVIORAL_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_behavioral.py"
 PARAMETER_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_parameters.py"
 STABILITY_TESTS_URL = f"{REPOSITORY_URL}/blob/main/tests/test_stability.py"
@@ -276,7 +278,33 @@ under favourable wind alignment.
 
 ## 3. Simulation
 
+### 3.1 Preparing the simulation area
+
+This project let's you choose any part of the Google Maps, to be the simulation area.
+First we need to get the screenshot of chosen area. To do that we recommend Google Earth,
+because it let's you disable the labels to have a clear map. When you are on the Google Earth,
+choose map instead of satellite, and choose clean style, then you can save a screenshot of chosen
+part of the map as png or jpg file and put that file in maps folder.
+
+Next we need to specify, that we want to convert this newly downloaded image. To do that
+we need to go to [`converter.py`]({CONVERTER_URL}) file and fain *main* function. In it, you can specify, where is
+and how the map file is named and where to put and how to name the converted map of the area.
+
+To run the converter, run it through your selected program or make sure you are in the folder with this file and run below command:
+
+```python
+python converter.py
+```
+
+Once the file is processed and converted image is generated, we can proceed to application.
+
 ### 3.2 Application and it's functionalities
+
+The application is located in [`app.py`]({APP_URL}). To run the converter, run it through your selected program or make sure you are in the folder with this file and run below command:
+
+```python
+python app.py
+```
 
 ![Application start screen](images/application_start.png)
 
@@ -300,19 +328,19 @@ simulation and 10 for running simulation.
 There are many options, that can be activated when the simulation is stopped or when
 the simulation is running, which are listed below:
 
-- Left Mouse Button - adds active fire at selected cell
-- C - switches right mouse button action between adding water barrier and adding controlled fire
-- Right Mouse Button - adds active fire or water barrier at selected cell
-- SPACE - runs/stops the simulation
-- R - resets the map
-- W - set the wind to north
-- A - set the wind to south
-- S - set the wind to east
-- D - set the wind to west
-- X - disable the wind
-- Up Arrow - increase FPS
-- Down Arrow - decrease FPS
-- ESCAPE - quit application
+- *Left Mouse Button* - adds active fire at selected cell
+- *C* - switches right mouse button action between adding water barrier and adding controlled fire
+- *Right Mouse Button* - adds active fire or water barrier at selected cell
+- *SPACE* - runs/stops the simulation
+- *R* - resets the map
+- *W* - set the wind to north
+- *A* - set the wind to south
+- *S* - set the wind to east
+- *D* - set the wind to west
+- *X* - disable the wind
+- *Up Arrow* - increase FPS
+- *Down Arrow* - decrease FPS
+- *ESCAPE* - quit application
 
 Running the simulation with active fire cells will spread the fire accordingly to the
 terrain, that the fire takes place. After given cell is on fire long enough, it becomes burned.
