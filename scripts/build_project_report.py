@@ -286,6 +286,8 @@ because it let's you disable the labels to have a clear map. When you are on the
 choose map instead of satellite, and choose clean style, then you can save a screenshot of chosen
 part of the map as png or jpg file and put that file in maps folder.
 
+![Clean map style selected in Google Earth](images/clean_map.png)
+
 Next we need to specify, that we want to convert this newly downloaded image. To do that
 we need to go to [`converter.py`]({CONVERTER_URL}) file and fain *main* function. In it, you can specify, where is
 and how the map file is named and where to put and how to name the converted map of the area.
@@ -308,7 +310,7 @@ python app.py
 
 ![Application start screen](images/application_start.png)
 
-Figure 1 presents the application with selected and converted map area and an information panel
+Figure 2 presents the application with selected and converted map area and an information panel
 on the right. The main part of the screen is the map, where different terrain types
 are displayed in distinct colors as is indicated on the Legend:
 
@@ -1299,6 +1301,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
     page_width, _page_height = A4
     content_width = page_width - 2 * 28 * mm
     pending_table_caption = None
+    pending_table_caption_text = None
     seen_section = False
     figure_counter = 0
 
@@ -1357,7 +1360,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             story.append(Spacer(1, 8))
         elif kind == "table":
             parsed_rows = parse_markdown_table(text)
-            if pending_table_caption and pending_table_caption.startswith("Table 1:"):
+            if pending_table_caption_text and pending_table_caption_text.startswith("Table 1:"):
                 headers = [
                     header.replace("Fire-Prone Conifers", "Fire-Prone<br/>Conifers")
                     .replace("Agro-Forestry Areas", "Agro-<br/>Forestry<br/>Areas")
@@ -1381,6 +1384,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
                     Spacer(1, 10),
                 ]
                 pending_table_caption = None
+                pending_table_caption_text = None
                 story.append(KeepTogether(table_block))
                 continue
 
@@ -1426,6 +1430,7 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
                 table_block.append(Paragraph(pending_table_caption, table_caption_style))
                 table_block.append(Spacer(1, 6))
                 pending_table_caption = None
+                pending_table_caption_text = None
             table_block.append(table)
             table_block.append(Spacer(1, 10))
             story.append(KeepTogether(table_block))
@@ -1445,6 +1450,10 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             story.append(Spacer(1, 10))
         elif kind == "p":
             if re.match(r'!\[(.*?)\]\((.*?)\)', text.strip()):
+                continue
+            if text.startswith("Table "):
+                pending_table_caption = reportlab_inline(text)
+                pending_table_caption_text = text
                 continue
             story.append(Paragraph(reportlab_inline(text), body_style))
 
