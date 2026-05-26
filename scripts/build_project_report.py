@@ -303,13 +303,15 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
+PageBreak: INSTALL_UNIX
+
 On Linux and macOS, the activation command is usually:
 
 ```python
 source .venv/bin/activate
 ```
 
-The [`requirements.txt`]({REQUIREMENTS_URL}) file installs the libraries needed
+The [`requirements.txt`]({REQUIREMENTS_URL}) file contains the libraries needed
 by the converter, the interactive application, report generation, and automated
 tests. NumPy and Pillow are used for image conversion and grid loading, Pygame
 is used by the interactive application, ReportLab is used to generate the PDF
@@ -422,20 +424,36 @@ Table 4: Keyboard and mouse controls used by the application.
 
 Running the simulation with active fire cells spreads fire according to the
 terrain on which the fire is burning. After a cell has burned for long enough,
-it becomes burned and can no longer provide fuel. Adding wind changes the fire
-spread direction toward the selected wind direction.
+it becomes burned and can no longer provide fuel, as shown in Figure 3. Adding
+wind changes the fire spread direction toward the selected wind direction.
+
+![Burned cells left after active fire](images/burned_cells.png)
 
 Adding water turns the selected cells into water barriers. These cells
 completely block further fire spread, so the fire cannot pass through them even
-when neighbouring cells are actively burning. This makes water useful for
-testing hard barriers and artificial containment lines.
+when neighbouring cells are actively burning. This effect is visible in
+Figure 4, where the water line interrupts the fire front. This makes water
+useful for testing hard barriers and artificial containment lines.
+
+![Water barrier blocking fire spread](images/water_barrier.png)
 
 Adding a controlled burn creates fire that does not spread by itself and is
-intended to act as an artificial firebreak after it burns out. The controlled
+intended to act as an artificial firebreak after it burns out. Figure 5 shows a
+controlled-burn line placed before the regular fire reaches it. The controlled
 burn is therefore useful for simulating preventive burning or manually prepared
-containment strips. However, if normal fire reaches the controlled burn before
-it burns out, the regular fire takes over that cell and it is no longer
-controlled.
+containment strips.
+
+![Controlled burn line added before contact with regular fire](images/controlled_fire_added.png)
+
+If the controlled burn has enough time to burn out, it becomes a burned
+firebreak that stops the approaching fire, as shown in Figure 6. However, if
+normal fire reaches the controlled burn before it burns out, the regular fire
+takes over that cell and it is no longer controlled; this case is shown in
+Figure 7.
+
+![Controlled burn line burned out before regular fire reaches it](images/burned_on_time.png)
+
+![Regular fire reaches controlled burn before it burns out](images/not_on_time.png)
 
 At the bottom right corner we also have a counter for active fire, burned, controlled burn and
 burned firebreak cells.
@@ -740,6 +758,7 @@ def reportlab_inline(text: str) -> str:
     escaped = re.sub(r"\*([^*\n]+)\*", r"<i>\1</i>", escaped)
     math_tokens = {
         "s = 0.09 / 0.475 = 0.1895": '<i>s = 0.09 / 0.475 = 0.1895</i>',
+        "and s is": 'and <i>s</i> is',
         "c1 = 0.045 and c2 = 0.131": '<i>c</i><sub>1</sub><i> = 0.045 and c</i><sub>2</sub><i> = 0.131</i>',
         "theta = 0 degrees": '<i>θ = 0 degrees</i>',
         "cos(theta) = 1": '<i>cos(θ) = 1</i>',
@@ -860,6 +879,11 @@ def markdown_blocks(markdown: str) -> list[tuple[str, str]]:
             flush_bullet()
             flush_paragraph()
             blocks.append(("equation", plain_inline(line[len("Equation:") :].strip())))
+        elif line.startswith("PageBreak:"):
+            flush_table()
+            flush_bullet()
+            flush_paragraph()
+            blocks.append(("pagebreak", plain_inline(line[len("PageBreak:") :].strip())))
         elif line.startswith("- "):
             flush_table()
             flush_bullet()
@@ -1400,6 +1424,11 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
         elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
             story.append(Paragraph(escaped, date_style))
         elif kind == "h2":
+            if text == "5. Conclusions":
+                story.append(PageBreak())
+                story.append(Paragraph(escaped, section_style))
+                seen_section = True
+                continue
             if seen_section:
                 story.append(Spacer(1, 8))
                 story.append(
@@ -1415,6 +1444,8 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
             story.append(Paragraph(escaped, section_style))
             seen_section = True
         elif kind == "h3":
+            if text == "4.5 Test Documentation and Generated Results":
+                story.append(PageBreak())
             story.append(Paragraph(escaped, subsection_style))
         elif kind == "bullet":
             story.append(Paragraph(escaped, bullet_style, bulletText="-"))
@@ -1427,6 +1458,8 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
                 story.append(EffectiveProbabilityEquation(content_width))
             else:
                 story.append(Paragraph(escaped, equation_style))
+        elif kind == "pagebreak":
+            story.append(PageBreak())
         elif kind == "code":
             code = Preformatted(text, code_style)
             table = Table([[code]], colWidths=[content_width])
@@ -1544,7 +1577,15 @@ def build_reportlab_pdf(markdown: str, output: Path) -> None:
 
             img = Image(str(resolved_img_path))
             available_width = A4[0] - (28 * mm) - (28 * mm)
-            img._restrictSize(available_width, 260)
+            simulation_images = {
+                "images/burned_cells.png",
+                "images/burned_on_time.png",
+                "images/controlled_fire_added.png",
+                "images/not_on_time.png",
+                "images/water_barrier.png",
+            }
+            max_image_height = 185 if img_path in simulation_images else 260
+            img._restrictSize(available_width, max_image_height)
             story.append(img)
 
             full_caption = f"Figure {figure_counter}. {caption}" if caption else f"Figure {figure_counter}."
