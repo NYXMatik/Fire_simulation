@@ -40,10 +40,6 @@ Fire_simulation/
 `-- README.md
 ```
 
-The `reports/` directory is generated locally or by GitHub Actions and is
-ignored by Git. It contains generated PDFs, HTML reports, JSON/JUnit test
-outputs, and console logs.
-
 ## Download the Project
 
 Clone the repository:
